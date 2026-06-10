@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarvis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0f;
+            min-height: 100vh;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        /* Orb Container */
+        .orb-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px 0;
+        }
+
+        .orb {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background: #ffffff;
+            position: relative;
+            animation: pulse 2.5s ease-in-out infinite;
+            box-shadow:
+                0 0 50px rgba(255, 255, 255, 0.3),
+                0 0 100px rgba(255, 255, 255, 0.15),
+                inset 0 0 40px rgba(255, 255, 255, 0.5);
+        }
+
+        .orb::before {
+            content: '';
+            position: absolute;
+            top: 15%;
+            left: 18%;
+            width: 30%;
+            height: 30%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.9), transparent);
+            border-radius: 50%;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow:
+                    0 0 50px rgba(255, 255, 255, 0.3),
+                    0 0 100px rgba(255, 255, 255, 0.15),
+                    inset 0 0 40px rgba(255, 255, 255, 0.5);
+            }
+            50% {
+                transform: scale(1.08);
+                box-shadow:
+                    0 0 70px rgba(255, 255, 255, 0.4),
+                    0 0 140px rgba(255, 255, 255, 0.2),
+                    inset 0 0 50px rgba(255, 255, 255, 0.6);
+            }
+        }
+
+        .orb.listening {
+            animation: pulse 0.8s ease-in-out infinite;
+        }
+
+        .orb.speaking {
+            animation: speak 0.5s ease-in-out infinite;
+        }
+
+        @keyframes speak {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.12); }
+        }
+
+        /* Status */
+        .status {
+            text-align: center;
+            margin: 25px 0;
+            font-size: 0.9em;
+            color: #666;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .status.processing {
+            color: #fff;
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Input Area */
+        .input-area {
+            width: 100%;
+            max-width: 500px;
+            margin-top: 20px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        #commandInput {
+            width: 100%;
+            padding: 20px 25px;
+            padding-right: 60px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50px;
+            color: #fff;
+            font-size: 1em;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        #commandInput::placeholder {
+            color: #555;
+        }
+
+        #commandInput:focus {
+            border-color: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .send-btn {
+            position: absolute;
+            right: 8px;
+            width: 48px;
+            height: 48px;
+            background: #fff;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+
+        .send-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: #0a0a0f;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            margin-top: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .quick-btn {
+            padding: 10px 20px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 25px;
+            color: #666;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .quick-btn:hover {
+            border-color: rgba(255, 255, 255, 0.4);
+            color: #fff;
+        }
+
+        /* Chat Messages */
+        .chat-messages {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 380px;
+            height: 100vh;
+            background: #0d0d12;
+            border-left: 1px solid rgba(255, 255, 255, 0.05);
+            transition: right 0.4s ease;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .chat-messages.open {
+            right: 0;
+        }
+
+        .chat-header {
+            padding: 25px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-title {
+            font-size: 0.8em;
+            color: #555;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .chat-close {
+            width: 35px;
+            height: 35px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .chat-close:hover {
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .chat-close svg {
+            width: 16px;
+            height: 16px;
+            fill: #555;
+        }
+
+        .chat-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 15px 18px;
+            border-radius: 18px;
+            font-size: 0.95em;
+            line-height: 1.5;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.bot {
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom-left-radius: 5px;
+        }
+
+        .message.user {
+            background: #fff;
+            color: #0a0a0f;
+            margin-left: 15%;
+            border-bottom-right-radius: 5px;
+        }
+
+        .action-tag {
+            display: inline-block;
+            padding: 3px 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            font-size: 0.7em;
+            margin-top: 8px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Typing */
+        .typing {
+            display: none;
+            padding: 15px 18px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 18px;
+            border-bottom-left-radius: 5px;
+            width: fit-content;
+        }
+
+        .typing.active {
+            display: flex;
+            gap: 5px;
+        }
+
+        .typing span {
+            width: 7px;
+            height: 7px;
+            background: #444;
+            border-radius: 50%;
+            animation: typingDot 1.4s infinite ease-in-out;
+        }
+
+        .typing span:nth-child(1) { animation-delay: 0s; }
+        .typing span:nth-child(2) { animation-delay: 0.2s; }
+        .typing span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typingDot {
+            0%, 80%, 100% { transform: scale(1); opacity: 0.4; }
+            40% { transform: scale(1.3); opacity: 1; }
+        }
+
+        /* Toggle Button */
+        .toggle-chat {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 55px;
+            height: 55px;
+            background: #fff;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 5px 30px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            z-index: 50;
+        }
+
+        .toggle-chat:hover {
+            transform: scale(1.08);
+        }
+
+        .toggle-chat svg {
+            width: 24px;
+            height: 24px;
+            fill: #0a0a0f;
+        }
+
+        .toggle-chat .badge {
+            position: absolute;
+            top: -3px;
+            right: -3px;
+            width: 14px;
+            height: 14px;
+            background: #ff4444;
+            border-radius: 50%;
+            border: 2px solid #0a0a0f;
+            display: none;
+        }
+
+        .toggle-chat.has-messages .badge {
+            display: block;
+        }
+
+        /* Error */
+        .error {
+            display: none;
+            padding: 12px 18px;
+            background: rgba(255, 60, 60, 0.15);
+            border: 1px solid rgba(255, 60, 60, 0.3);
+            border-radius: 15px;
+            margin-top: 15px;
+            font-size: 0.85em;
+            color: #ff6666;
+            text-align: center;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        /* Mobile */
+        @media (max-width: 600px) {
+            .orb {
+                width: 120px;
+                height: 120px;
+            }
+
+            .chat-messages {
+                width: 100%;
+                right: -100%;
+            }
+
+            #commandInput {
+                padding: 18px 22px;
+                font-size: 1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Orb -->
+        <div class="orb-container">
+            <div class="orb" id="orb"></div>
+        </div>
+
+        <!-- Status -->
+        <div class="status" id="statusText">Aguardando</div>
+
+        <!-- Error -->
+        <div class="error" id="errorMsg"></div>
+
+        <!-- Input -->
+        <div class="input-area">
+            <div class="input-wrapper">
+                <input type="text" id="commandInput" placeholder="Digite um comando..." autocomplete="off">
+                <button class="send-btn" id="sendBtn">
+                    <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <button class="quick-btn" onclick="sendCommand('tire um screenshot')">Screenshot</button>
+                <button class="quick-btn" onclick="sendCommand('status do sistema')">Sistema</button>
+                <button class="quick-btn" onclick="sendCommand('liste tarefas')">Tarefas</button>
+                <button class="quick-btn" onclick="sendCommand('abra chrome')">Chrome</button>
+                <button class="quick-btn" onclick="sendCommand('velocidade')">Velocidade</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div class="chat-messages" id="chatMessages">
+        <div class="chat-header">
+            <div class="chat-title">Histórico</div>
+            <button class="chat-close" onclick="toggleChat()">
+                <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+        </div>
+        <div class="chat-content" id="chatContent">
+            <div class="message bot">
+                Olá! Como posso ajudar?
+            </div>
+        </div>
+        <div class="typing" id="typing">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    </div>
+
+    <!-- Toggle Button -->
+    <button class="toggle-chat" id="toggleChat" onclick="toggleChat()">
+        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+        <div class="badge"></div>
+    </button>
+
+    <script>
+        const commandInput = document.getElementById('commandInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const orb = document.getElementById('orb');
+        const statusText = document.getElementById('statusText');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatContent = document.getElementById('chatContent');
+        const typing = document.getElementById('typing');
+        const errorMsg = document.getElementById('errorMsg');
+        const toggleChat = document.getElementById('toggleChat');
+
+        let hasMessages = false;
+
+        async function sendCommand(text) {
+            if (!text.trim()) return;
+
+            statusText.textContent = 'Processando';
+            statusText.classList.add('processing');
+            orb.classList.add('listening');
+
+            if (!chatMessages.classList.contains('open')) {
+                chatMessages.classList.add('open');
+            }
+
+            addMessage(text, 'user');
+            commandInput.value = '';
+            typing.classList.add('active');
+
+            try {
+                const res = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: text })
+                });
+                const data = await res.json();
+
+                typing.classList.remove('active');
+                orb.classList.remove('listening');
+                statusText.classList.remove('processing');
+
+                if (data.success) {
+                    statusText.textContent = 'Pronto';
+                    orb.classList.add('speaking');
+                    setTimeout(() => {
+                        orb.classList.remove('speaking');
+                        statusText.textContent = 'Aguardando';
+                    }, 2000);
+                    addMessage(data.result, 'bot', data.action);
+                    hasMessages = true;
+                    toggleChat.classList.add('has-messages');
+                } else {
+                    statusText.textContent = 'Erro';
+                    showError(data.error || 'Erro');
+                }
+            } catch (e) {
+                typing.classList.remove('active');
+                orb.classList.remove('listening');
+                statusText.classList.remove('processing');
+                statusText.textContent = 'Erro';
+                showError('Erro de conexão');
+                addMessage('Erro de conexão', 'bot');
+            }
+        }
+
+        function addMessage(text, type, action = null) {
+            const msg = document.createElement('div');
+            msg.className = `message ${type}`;
+            msg.innerHTML = text + (action && type === 'bot' ? `<div class="action-tag">${action}</div>` : '');
+            chatContent.appendChild(msg);
+            chatContent.scrollTop = chatContent.scrollHeight;
+        }
+
+        function showError(text) {
+            errorMsg.textContent = text;
+            errorMsg.classList.add('active');
+            setTimeout(() => errorMsg.classList.remove('active'), 4000);
+        }
+
+        function toggleChat() {
+            chatMessages.classList.toggle('open');
+        }
+
+        sendBtn.addEventListener('click', () => sendCommand(commandInput.value));
+        commandInput.addEventListener('keypress', e => {
+            if (e.key === 'Enter') sendCommand(commandInput.value);
+        });
+
+        commandInput.focus();
+    </script>
+</body>
+</html>

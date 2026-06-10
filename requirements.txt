@@ -1,0 +1,22 @@
+# Jarvis MiniMax - Requisitos
+
+# Comunicação com API
+requests>=2.28.0
+
+# Automação do PC
+pyautogui>=0.9.54
+
+# Reconhecimento de voz (opcional, para modo voz)
+SpeechRecognition>=3.10.0
+PyAudio>=0.2.13
+
+# Texto para fala (opcional)
+pyttsx3>=2.90
+
+# Interface Web
+flask>=3.0.0
+
+# Certifique-se de ter o PyAudio instalado no sistema:
+# Ubuntu/Debian: sudo apt install python3-pyaudio
+# macOS: brew install portaudio
+# Windows: pip install pyaudio
