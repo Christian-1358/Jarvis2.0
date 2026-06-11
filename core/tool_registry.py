@@ -113,7 +113,12 @@ class ToolRegistry:
             if tool.requires_target:
                 params['target'] = target
 
-            result = tool.function(**params) if params else tool.function(target) if target else tool.function()
+            if params:
+                result = tool.function(**params)
+            elif tool.requires_target and target:
+                result = tool.function(target)
+            else:
+                result = tool.function()
 
             # Atualizar estatísticas
             if "erro" not in result.lower()[:20]:
