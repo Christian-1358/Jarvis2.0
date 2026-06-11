@@ -16,6 +16,7 @@ Arquitetura:
 import sys
 import json
 import threading
+import time
 import uuid
 from datetime import datetime
 from typing import Optional, Tuple
@@ -246,20 +247,16 @@ class JarvisMiniMax:
             try:
                 import asyncio
                 import subprocess
-                # Limpar texto de caracteres problemáticos
+                import os
                 clean_text = text.strip()
                 async def speak_async():
                     communicate = self.tts_async.Communicate(clean_text, self.tts_voice)
                     await communicate.save("/tmp/jarvis_speak.mp3")
                 asyncio.run(speak_async())
-                # Aguarda arquivo estar pronto
-                import time
-                time.sleep(0.5)
-                # Verifica se arquivo existe e tem conteúdo
-                import os
-                if os.path.exists("/tmp/jarvis_speak.mp3") and os.path.getsize("/tmp/jarvis_speak.mp3") > 0:
+                time.sleep(0.3)
+                if os.path.exists("/tmp/jarvis_speak.mp3") and os.path.getsize("/tmp/jarvis_speak.mp3") > 1000:
                     subprocess.run(["paplay", "/tmp/jarvis_speak.mp3"],
-                                  capture_output=True, timeout=10)
+                                  capture_output=True, timeout=15)
             except Exception as e:
                 print(f"[TTS ERRO] {e}")
         elif self.tts_engine:
@@ -310,6 +307,93 @@ class JarvisMiniMax:
             if action in actions:
                 return context
         return "general"
+
+    def _validate_result(self, action: str, target: str, result: str) -> bool:
+        """
+        Valida se o resultado da ação indica sucesso ou falha.
+        Usa heurísticas e padrões conhecidos.
+        """
+        result_lower = result.lower()[:200]
+
+        # Padrões de erro conhecidos
+        error_patterns = [
+            "erro ao",
+            "não encontrado",
+            "no such file",
+            "not found",
+            "permission denied",
+            "failed",
+            "falha",
+            "impossível",
+            "não consegui",
+            "errno 2",
+            "errno 13",
+            "não existe",
+        ]
+
+        # Verificar padrões de erro
+        for pattern in error_patterns:
+            if pattern in result_lower:
+                return False
+
+        # Padrões de sucesso
+        success_patterns = [
+            "aberto",
+            "fechado",
+            "criado",
+            "deletado",
+            "executado",
+            "realizado",
+            "sucesso",
+            "ok",
+            "✅",
+            "configurado",
+            "iniciado",
+            "parado",
+            "enviado",
+            "salvo",
+        ]
+
+        # Se encontrou padrão de sucesso, considerar OK
+        for pattern in success_patterns:
+            if pattern in result_lower:
+                return True
+
+        # Se não encontrou erro nem sucesso claro, usar heurística
+        # Se contém "erro" no início, falhou
+        if result_lower.startswith("erro"):
+            return False
+
+        # Ações que sempre retornam algo válido
+        if action in ["chat", "list_tasks", "list_reminders", "show_stats",
+                      "git_status", "hardware_status", "calendar_today"]:
+            return True
+
+        return True  # Default para ação executada
+
+    def _get_corrective_action(self, action: str, target: str, result: str) -> Optional[str]:
+        """
+        Determina uma ação corretiva com base no erro.
+        """
+        result_lower = result.lower()
+
+        # App não encontrado → tentar variante
+        if "no such file" in result_lower or "not found" in result_lower:
+            if action == "open_app":
+                # Tentar com .desktop ou outro nome
+                app_variants = {
+                    "whatsapp": ["whatsapp-desktop", "whatsapp-app"],
+                    "chrome": ["google-chrome", "chromium"],
+                    "vscode": ["code-oss", "code"],
+                }
+                if target in app_variants:
+                    return f"open_app"  # Já tentou, próxima vez tentar variante
+
+        # Arquivo não encontrado
+        if "no such file" in result_lower and action == "open_folder":
+            return "run_command"  # Tentar via terminal
+
+        return None
 
     def _handle_workspace_command(self, command: str) -> str:
         """Processa comandos relacionados a workspaces."""
@@ -457,6 +541,11 @@ class JarvisMiniMax:
         if not command:
             return "Olá! Como posso ajudar?"
 
+        # Limpar comando - remover artigos e normalizar
+        import re
+        command = re.sub(r'\b(o|a|os|as|um|uma|uns|umas)\b\s+', '', command, flags=re.IGNORECASE)
+        command = re.sub(r'\s+', ' ', command).strip()
+
         print(f"[COMANDO] {original_command}")
 
         # ============================================
@@ -509,7 +598,19 @@ class JarvisMiniMax:
         # ============================================
         # STEP 5: AVALIAR RESULTADO (Feedback)
         # ============================================
-        success = "erro" not in result.lower()[:20] and "não" not in result.lower()[:10]
+        success = self._validate_result(action, target, result)
+
+        # Se falhou, tentar ação corretiva
+        if not success:
+            corrective_action = self._get_corrective_action(action, target, result)
+            if corrective_action:
+                print(f"[CORREÇÃO] Tentando: {corrective_action}")
+                from functions import execute_action
+                result2 = execute_action(corrective_action, target, parameters)
+                success2 = self._validate_result(corrective_action, target, result2)
+                if success2:
+                    result = f"{result}\n(Corrigido: {result2})"
+                    success = True
 
         # ============================================
         # STEP 6: REGISTRAR NO BANCO (DB)

@@ -42,14 +42,44 @@ def search_web(query: str) -> str:
 def open_app(app_name: str) -> str:
     if not app_name:
         return "Informe o nome do aplicativo."
+
+    # Mapeamento de nomes comuns para comandos corretos no Linux
+    app_mapping = {
+        "whatsapp": "whatsapp-desktop",
+        "chrome": "google-chrome",
+        "code": "code",
+        "vscode": "code",
+        "terminal": "gnome-terminal",
+        "arquivos": "nautilus",
+        "arquivo": "nautilus",
+        "files": "nautilus",
+        "spotify": "spotify",
+        "discord": "discord",
+        "telegram": "telegram-desktop",
+        "zoom": "zoom",
+        "slack": "slack",
+        "firefox": "firefox",
+        "edge": "msedge",
+    }
+
+    app_lower = app_name.lower().strip()
+    command = app_mapping.get(app_lower, app_lower)
+
     try:
         if sys.platform == "linux":
-            result = subprocess.run(["which", app_name.lower()], capture_output=True, text=True)
-            if result.returncode == 0:
-                subprocess.Popen([app_name.lower()])
-                return f"Abrindo {app_name}"
-        subprocess.Popen([app_name])
-        return f"Abrindo {app_name}"
+            # Primeiro tenta o nome mapeado
+            result = subprocess.run(["which", command], capture_output=True, text=True)
+            if result.returncode != 0:
+                # Se não encontrou, tenta o nome original
+                result = subprocess.run(["which", app_name.lower()], capture_output=True, text=True)
+                if result.returncode == 0:
+                    command = app_name.lower()
+
+            subprocess.Popen([command])
+            return f"Abrindo {app_name}"
+        else:
+            subprocess.Popen([app_name])
+            return f"Abrindo {app_name}"
     except Exception as e:
         return f"Erro ao abrir {app_name}: {e}"
 
@@ -69,41 +99,44 @@ def open_site(url: str) -> str:
 def close_app(app_name: str) -> str:
     if not app_name:
         return "Informe o nome do aplicativo."
+
+    # Mapeamento de nomes comuns para nomes de processos
+    process_mapping = {
+        "whatsapp": "whatsapp-desktop",
+        "chrome": "chrome",
+        "google chrome": "chrome",
+        "code": "code",
+        "vscode": "code",
+        "terminal": "gnome-terminal",
+        "arquivos": "nautilus",
+        "files": "nautilus",
+        "spotify": "spotify",
+        "discord": "discord",
+        "telegram": "telegram-desktop",
+        "zoom": "zoom",
+        "slack": "slack",
+        "firefox": "firefox",
+        "edge": "msedge",
+        "opera": "opera",
+        "brave": "brave-browser",
+    }
+
+    app_lower = app_name.lower().strip()
+    process_name = process_mapping.get(app_lower, app_lower)
+
     try:
-        # Mapeamento de nomes comuns para nomes de processos
-        browser_mapping = {
-            "google": "chrome",
-            "chrome": "chrome",
-            "chromium": "chromium",
-            "firefox": "firefox",
-            "edge": "msedge",
-            "opera": "opera",
-            "brave": "brave-browser",
-        }
-
-        # Normalizar nome
-        app_lower = app_name.lower().strip()
-        process_name = browser_mapping.get(app_lower, app_lower)
-
         if sys.platform == "linux":
-            # Tentar killall primeiro (mais seguro)
-            subprocess.run(
+            # Primeiro tenta killall
+            result = subprocess.run(
                 ["killall", "-9", process_name],
                 capture_output=True, timeout=5
             )
-            # Se não funcionou, matar via pgrep
-            result = subprocess.run(
-                ["pgrep", "-f", process_name],
-                capture_output=True, text=True
-            )
-            if result.stdout.strip():
-                pids = result.stdout.strip().split('\n')
-                for pid in pids:
-                    if pid:
-                        try:
-                            subprocess.run(["kill", "-9", pid], capture_output=True)
-                        except:
-                            pass
+            if result.returncode != 0:
+                # Tenta com o nome original
+                result = subprocess.run(
+                    ["killall", "-9", app_lower],
+                    capture_output=True, timeout=5
+                )
         elif sys.platform == "win32":
             os.system(f"taskkill /IM {process_name}.exe /F")
         return f"Fechando {app_name}"
@@ -1982,6 +2015,10 @@ def execute_action(action: str, target: str = "", parameters: dict = None) -> st
 
         # GitHub Auto
         if action in ["github_auto_commit", "github_auto_push", "github_auto_pull"]:
+            return func()
+
+        # Deploy sem argumentos
+        if action in ["deploy", "backup_dotfiles"]:
             return func()
 
         return func(target)
