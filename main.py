@@ -78,6 +78,15 @@ try:
 except ImportError:
     RL_AVAILABLE = False
 
+# Context Builder and Workspace Memory
+try:
+    from data.context_builder import context_builder, AdvancedContextBuilder
+    from data.workspace_memory import workspace_memory, conversation_summarizer
+    CONTEXT_BUILDER_AVAILABLE = True
+except ImportError as e:
+    print(f"[CONTEXT] Não disponível: {e}")
+    CONTEXT_BUILDER_AVAILABLE = False
+
 
 class JarvisMiniMax:
     """Jarvis MiniMax - Arquitetura refatorada com fluxo:
@@ -91,6 +100,9 @@ class JarvisMiniMax:
         self.tts_engine = None
         self.web_server = None
         self.web_thread = None
+        self._command_lock = threading.Lock()
+        self._last_command = ""
+        self._last_command_time = 0
 
         # Inicializar Tool Registry
         self.tool_registry = get_registry()
@@ -100,6 +112,14 @@ class JarvisMiniMax:
 
         # Inicializar Core Database
         self.db = get_jarvis_db() if DB_AVAILABLE else None
+
+        # Inicializar Context Builder e Workspace Memory
+        self.context_builder = None
+        if CONTEXT_BUILDER_AVAILABLE:
+            try:
+                self.context_builder = context_builder
+            except Exception as e:
+                print(f"[CONTEXT] Erro ao inicializar: {e}")
 
         # TTS - usa edge-tts com voz neural Antonio (masculino brasileiro)
         self.tts_engine = None
@@ -193,6 +213,14 @@ class JarvisMiniMax:
                 "rl_available": RL_AVAILABLE
             })
 
+        @self.app.route("/api/voice-mode-status")
+        def voice_mode_status():
+            return jsonify({"running": False})
+
+        @self.app.route("/api/voice-preview", methods=["POST"])
+        def voice_preview():
+            return jsonify({"success": True})
+
     def start_web_server(self, port: int = 5000) -> None:
         """Inicia o servidor web em uma thread separada."""
         if not FLASK_AVAILABLE:
@@ -212,16 +240,26 @@ class JarvisMiniMax:
 
     def speak(self, text: str) -> None:
         """Output de texto com TTS opcional (sem print, só áudio)."""
+        if not text or not text.strip():
+            return
         if self.tts_async:
             try:
                 import asyncio
+                import subprocess
+                # Limpar texto de caracteres problemáticos
+                clean_text = text.strip()
                 async def speak_async():
-                    communicate = self.tts_async.Communicate(text, self.tts_voice)
+                    communicate = self.tts_async.Communicate(clean_text, self.tts_voice)
                     await communicate.save("/tmp/jarvis_speak.mp3")
                 asyncio.run(speak_async())
-                import subprocess
-                subprocess.Popen(["paplay", "/tmp/jarvis_speak.mp3"],
- stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # Aguarda arquivo estar pronto
+                import time
+                time.sleep(0.5)
+                # Verifica se arquivo existe e tem conteúdo
+                import os
+                if os.path.exists("/tmp/jarvis_speak.mp3") and os.path.getsize("/tmp/jarvis_speak.mp3") > 0:
+                    subprocess.run(["paplay", "/tmp/jarvis_speak.mp3"],
+                                  capture_output=True, timeout=10)
             except Exception as e:
                 print(f"[TTS ERRO] {e}")
         elif self.tts_engine:
@@ -273,6 +311,61 @@ class JarvisMiniMax:
                 return context
         return "general"
 
+    def _handle_workspace_command(self, command: str) -> str:
+        """Processa comandos relacionados a workspaces."""
+        if not self.context_builder:
+            return "Sistema de workspace não disponível."
+
+        command_lower = command.lower()
+
+        try:
+            # Criar workspace
+            if "criar workspace" in command_lower or "novo projeto" in command_lower:
+                # Extrair nome do projeto
+                name = command.replace("criar workspace", "").replace("novo projeto", "").strip()
+                if not name:
+                    return "Informe o nome do workspace. Ex: 'jarvis, criar workspace MeuProjeto'"
+                desc = f"Workspace criado em {datetime.now().strftime('%Y-%m-%d')}"
+                ws_id = self.context_builder.workspace_memory.create_workspace(name, desc)
+                self.context_builder.workspace_memory.set_active_workspace(name)
+                return f"✅ Workspace '{name}' criado e ativado."
+
+            # Ativar workspace
+            elif "ativar workspace" in command_lower or "trocar projeto" in command_lower:
+                name = command.replace("ativar workspace", "").replace("trocar projeto", "").strip()
+                if not name:
+                    active = self.context_builder.workspace_memory.get_active_workspace()
+                    if active:
+                        return f"Workspace ativo: {active.name}"
+                    return "Nenhum workspace ativo."
+                if self.context_builder.workspace_memory.set_active_workspace(name):
+                    return f"✅ Workspace '{name}' ativado."
+                return f"Workspace '{name}' não encontrado."
+
+            # Listar workspaces
+            elif "listar workspaces" in command_lower:
+                workspaces = self.context_builder.workspace_memory.list_workspaces()
+                if not workspaces:
+                    return "Nenhum workspace criado."
+                parts = ["📁 Workspaces:"]
+                for ws in workspaces:
+                    marker = "✅" if ws.is_active else "  "
+                    parts.append(f"  {marker} {ws.name}")
+                return "\n".join(parts)
+
+            # Status do workspace
+            elif "status workspace" in command_lower or "meu workspace" in command_lower:
+                ws = self.context_builder.workspace_memory.get_active_workspace()
+                if not ws:
+                    return "Nenhum workspace ativo."
+                return self.context_builder.workspace_memory.get_workspace_context()
+
+            else:
+                return "Comando de workspace não reconhecido."
+
+        except Exception as e:
+            return f"Erro ao processar comando de workspace: {e}"
+
     def _log_to_database(self, command: str, action: str, target: str, result: str, success: bool):
         """Registra dados no Core Database (SQL)."""
         if not self.db:
@@ -294,7 +387,9 @@ class JarvisMiniMax:
                 action=action,
                 target=target,
                 result=result,
-                success=success
+                success=success,
+                execution_time_ms=None,
+                error=None
             )
 
             # Registrar uso para estatísticas
@@ -315,8 +410,18 @@ class JarvisMiniMax:
                 context=context,
                 command=command,
                 result=result,
-                success=success
+                success=success,
+                rating=None
             )
+
+            # Log no workspace ativo
+            if self.context_builder:
+                self.context_builder.log_action_to_workspace(
+                    action=action,
+                    description=f"{target}: {result[:100]}" if target else result[:100],
+                    details={"success": success, "command": command},
+                    session_id=self.session_id
+                )
 
         except Exception as e:
             print(f"[DB] Erro ao registrar: {e}")
@@ -324,10 +429,19 @@ class JarvisMiniMax:
     def process_command(self, command: str, skip_safety: bool = False) -> str:
         """
         Processa um comando seguindo o fluxo:
-        User → Context → Memory → MiniMax → RL → Executor → Feedback → DB
+        User → Context → Memory → Workspace → MiniMax → RL → Executor → Feedback → DB
         """
         if not command:
             return "Nenhum comando recebido."
+
+        # Evitar comandos duplicados (debounce de 2 segundos)
+        import time
+        current_time = time.time()
+        with self._command_lock:
+            if command == self._last_command and (current_time - self._last_command_time) < 2:
+                return "Comando já processado recentemente."
+            self._last_command = command
+            self._last_command_time = current_time
 
         # ============================================
         # STEP 1: PRE-PROCESSAMENTO (User → Context)
@@ -344,20 +458,34 @@ class JarvisMiniMax:
             return "Olá! Como posso ajudar?"
 
         print(f"[COMANDO] {original_command}")
-        print("[CONTEXTO] Preparando análise...")
+
+        # ============================================
+        # STEP 1.5: VERIFICAR PERGUNTAS SOBRE O PROJETO
+        # ============================================
+        if self.context_builder:
+            question_lower = command.lower()
+            project_keywords = ["onde parei", "onde eu parei", "o que fiz ontem",
+                              "problema", "erro recorrente", "última análise",
+                              "tarefa", "pendente", "workspace", "projeto atual"]
+
+            if any(kw in question_lower for kw in project_keywords):
+                answer = self.context_builder.answer_project_question(command)
+                return answer
+
+            # Verificar comandos de workspace
+            ws_commands = ["criar workspace", "ativar workspace", "listar workspaces",
+                          "novo projeto", "trocar projeto"]
+            if any(cmd in question_lower for cmd in ws_commands):
+                return self._handle_workspace_command(command)
 
         # ============================================
         # STEP 2: ANÁLISE MiniMax (Context → MiniMax)
         # ============================================
-        print("[MINIMAX] Analisando comando...")
-
         decision = analyze_command(command)
 
         action = decision.get("action", "chat")
         target = decision.get("target", "")
         parameters = decision.get("parameters", {})
-
-        print(f"[DECISÃO] action={action}, target={target}")
 
         # ============================================
         # STEP 3: VERIFICAR AÇÕES PERIGOSAS (Safety)
@@ -369,8 +497,6 @@ class JarvisMiniMax:
         # ============================================
         # STEP 4: EXECUTAR AÇÃO (Executor)
         # ============================================
-        print(f"[EXECUTOR] Executando {action}...")
-
         # Tentar usar Tool Registry primeiro, depois fallback
         tool = get_tool(action)
         if tool:
@@ -384,11 +510,6 @@ class JarvisMiniMax:
         # STEP 5: AVALIAR RESULTADO (Feedback)
         # ============================================
         success = "erro" not in result.lower()[:20] and "não" not in result.lower()[:10]
-
-        if success:
-            print(f"[FEEDBACK] ✅ Ação bem-sucedida")
-        else:
-            print(f"[FEEDBACK] ❌ Ação falhou")
 
         # ============================================
         # STEP 6: REGISTRAR NO BANCO (DB)

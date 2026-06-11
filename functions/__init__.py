@@ -170,6 +170,126 @@ def cancel_shutdown() -> str:
         return f"Erro ao cancelar: {e}"
 
 
+# ========================
+# AGENDAMENTO DE DEPLOY
+# ========================
+
+_deploy_schedules = {}
+_deploy_lock = threading.Lock()
+
+
+def _execute_scheduled_deploy(schedule_id: str, recurring: bool):
+    """Executa o deploy agendado."""
+    try:
+        result = deploy()
+        print(f"[DEPLOY AGENDADO] {schedule_id}: {result[:100]}")
+    except Exception as e:
+        print(f"[DEPLOY AGENDADO] Erro: {e}")
+
+    if recurring:
+        with _deploy_lock:
+            if schedule_id in _deploy_schedules:
+                _deploy_schedules[schedule_id].cancel()
+                del _deploy_schedules[schedule_id]
+
+
+def schedule_deploy(time_str: str, recurring: str = "") -> str:
+    """
+    Agenda um deploy para uma hora específica.
+    Uso: schedule_deploy "14:30" ou schedule_deploy "14"
+    recurring: "diario", "todos os dias" para recurência diária
+    """
+    import re
+
+    if not time_str:
+        return "Informe a hora do deploy. Ex: 14:30 ou 14"
+
+    time_str = time_str.strip()
+    recurring_lower = recurring.lower() if recurring else ""
+
+    match = re.match(r'(\d{1,2})(?::(\d{2}))?', time_str)
+    if not match:
+        return "Formato de hora inválido. Use HH:MM ou HH."
+
+    hour = int(match.group(1))
+    minute = int(match.group(2) or "0")
+
+    if hour > 23 or minute > 59:
+        return "Hora inválida."
+
+    now = datetime.now()
+    target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+    if target <= now:
+        target = target + timedelta(days=1)
+
+    seconds = (target - now).total_seconds()
+
+    schedule_id = f"{hour:02d}:{minute:02d}"
+    is_recurring = "diario" in recurring_lower or "todos" in recurring_lower
+    if is_recurring:
+        schedule_id += "_daily"
+
+    with _deploy_lock:
+        if schedule_id in _deploy_schedules:
+            _deploy_schedules[schedule_id].cancel()
+
+        timer = threading.Timer(seconds, _execute_scheduled_deploy, args=[schedule_id, is_recurring])
+        timer.daemon = True
+        _deploy_schedules[schedule_id] = timer
+        timer.start()
+
+    recurrence_text = " (diário)" if is_recurring else ""
+    return f"🚀 Deploy agendado para {hour:02d}:{minute:02d}{recurrence_text}"
+
+
+def cancel_deploy_schedule(time_str: str = "") -> str:
+    """Cancela um deploy agendado."""
+    import re
+
+    with _deploy_lock:
+        if not time_str:
+            for sid, timer in list(_deploy_schedules.items()):
+                timer.cancel()
+            _deploy_schedules.clear()
+            return "Todos os deploys agendados cancelados."
+
+        match = re.match(r'(\d{1,2})(?::(\d{2}))?', time_str.strip())
+        if not match:
+            return "Formato de hora inválido."
+
+        hour = int(match.group(1))
+        minute = int(match.group(2) or "0")
+        schedule_id = f"{hour:02d}:{minute:02d}"
+
+        removed = False
+        for suffix in ["", "_daily"]:
+            sid = schedule_id + suffix
+            if sid in _deploy_schedules:
+                _deploy_schedules[sid].cancel()
+                del _deploy_schedules[sid]
+                removed = True
+
+        if removed:
+            return f"Deploy das {hour:02d}:{minute:02d} cancelado."
+        return f"Nenhum deploy encontrado para {hour:02d}:{minute:02d}."
+
+
+def list_deploy_schedules() -> str:
+    """Lista todos os deploys agendados."""
+    with _deploy_lock:
+        if not _deploy_schedules:
+            return "Nenhum deploy agendado."
+
+        lines = ["🚀 Deploys agendados:"]
+        for sid in sorted(_deploy_schedules.keys()):
+            suffix = " (diário)" if sid.endswith("_daily") else ""
+            time_part = sid.replace("_daily", "")
+            lines.append(f"  - {time_part}{suffix}")
+
+        return "\n".join(lines)
+
+
 def restart_pc() -> str:
     try:
         if sys.platform == "linux":
@@ -639,6 +759,162 @@ def hotkey(*keys) -> str:
 
 
 # ========================
+# DESPERTADOR / ALARME
+# ========================
+
+import threading
+import subprocess
+from pathlib import Path
+
+# Armazena os timers dos alarmes
+_active_alarms = {}
+_alarm_lock = threading.Lock()
+
+ALARM_SOUND_FILE = str(Path(__file__).parent.parent / "re0r.mp3")
+
+
+def _play_alarm():
+    """Toca o som do alarme até ser parado."""
+    subprocess.Popen(["paplay", ALARM_SOUND_FILE],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def set_alarm(time_str: str, recurring: str = "") -> str:
+    """
+    Define um alarme para despertar.
+    Uso: set_alarm "14:30" ou set_alarm "14" (horas)
+    recurring: "diario", "todos os dias", semanal", etc.
+    """
+    import re
+
+    if not time_str:
+        return "Informe a hora do alarme. Ex: 14:30 ou 14"
+
+    # Parse da hora
+    time_str = time_str.strip()
+    recurring_lower = recurring.lower() if recurring else ""
+
+    # Extrair hora e minuto
+    match = re.match(r'(\d{1,2})(?::(\d{2}))?', time_str)
+    if not match:
+        return "Formato de hora inválido. Use HH:MM ou HH."
+
+    hour = int(match.group(1))
+    minute = int(match.group(2) or "0")
+
+    if hour > 23 or minute > 59:
+        return "Hora inválida."
+
+    # Calcular segundos até o alarme
+    now = datetime.now()
+    target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+    # Se já passou hoje, agendar para amanhã
+    if target <= now:
+        target = target + timedelta(days=1)
+
+    seconds = (target - now).total_seconds()
+
+    alarm_id = f"{hour:02d}:{minute:02d}"
+    if "diario" in recurring_lower or "todos" in recurring_lower:
+        alarm_id += "_daily"
+
+    with _alarm_lock:
+        # Cancelar alarme existente com mesmo ID
+        if alarm_id in _active_alarms:
+            _active_alarms[alarm_id].cancel()
+
+        # Criar timer
+        timer = threading.Timer(seconds, _trigger_alarm, args=[alarm_id, "diario" in recurring_lower])
+        timer.daemon = True
+        _active_alarms[alarm_id] = timer
+        timer.start()
+
+    recurrence_text = " (diário)" if "diario" in recurring_lower else ""
+    return f"⏰ Alarme definido para {hour:02d}:{minute:02d}{recurrence_text}"
+
+
+def _trigger_alarm(alarm_id: str, recurring: bool):
+    """Dispara o alarme."""
+    _play_alarm()
+
+    # Se é recorrente, reprogramar
+    if recurring:
+        with _alarm_lock:
+            if alarm_id in _active_alarms:
+                _active_alarms[alarm_id].cancel()
+
+        # Reprogramar para o dia seguinte
+        timer = threading.Timer(86400, _trigger_alarm, args=[alarm_id, True])
+        timer.daemon = True
+        with _alarm_lock:
+            _active_alarms[alarm_id] = timer
+        timer.start()
+
+
+def cancel_alarm(time_str: str = "") -> str:
+    """
+    Cancela um alarme específico ou todos.
+    Uso: cancel_alarm "14:30" ou cancel_alarm (todos)
+    """
+    import re
+
+    with _alarm_lock:
+        if not time_str:
+            # Cancelar todos
+            for alarm_id, timer in list(_active_alarms.items()):
+                timer.cancel()
+            _active_alarms.clear()
+            return "Todos os alarmes cancelados."
+
+        # Parse da hora
+        match = re.match(r'(\d{1,2})(?::(\d{2}))?', time_str.strip())
+        if not match:
+            return "Formato de hora inválido."
+
+        hour = int(match.group(1))
+        minute = int(match.group(2) or "0")
+        alarm_id = f"{hour:02d}:{minute:02d}"
+
+        # Tentar cancelar tanto simples quanto diário
+        removed = False
+        for suffix in ["", "_daily"]:
+            aid = alarm_id + suffix
+            if aid in _active_alarms:
+                _active_alarms[aid].cancel()
+                del _active_alarms[aid]
+                removed = True
+
+        if removed:
+            return f"Alarme das {hour:02d}:{minute:02d} cancelado."
+        return f"Nenhum alarme encontrado para {hour:02d}:{minute:02d}."
+
+
+def list_alarms() -> str:
+    """Lista todos os alarmes ativos."""
+    with _alarm_lock:
+        if not _active_alarms:
+            return "Nenhum alarme ativo."
+
+        lines = ["⏰ Alarmes ativos:"]
+        for alarm_id in sorted(_active_alarms.keys()):
+            suffix = " (diário)" if alarm_id.endswith("_daily") else ""
+            time_part = alarm_id.replace("_daily", "")
+            lines.append(f"  - {time_part}{suffix}")
+
+        return "\n".join(lines)
+
+
+def play_alarm_sound() -> str:
+    """Toca o som do alarme uma vez."""
+    try:
+        _play_alarm()
+        return f"🔊 Tocando alarme: {ALARM_SOUND_FILE}"
+    except Exception as e:
+        return f"Erro ao tocar alarme: {e}"
+
+
+# ========================
 # LEMBRETES E TAREFAS
 # ========================
 
@@ -895,7 +1171,7 @@ def vscode_create_project(project_name: str, template: str = "") -> str:
         project_path.mkdir(parents=True, exist_ok=True)
         if template:
             create_file(str(project_path / "README.md"), f"# {project_name}\n\nTemplate: {template}")
-        subprocess.Popen(["code", str(project_path)])
+        subprocess.Popen(["/usr/bin/code", str(project_path)])
         return f"Projeto {project_name} criado e aberto no VS Code"
     except Exception as e:
         return f"Erro ao criar projeto: {e}"
@@ -908,7 +1184,7 @@ def vscode_edit_file(file_path: str, content: str) -> str:
     try:
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
         Path(file_path).write_text(content or "", encoding="utf-8")
-        subprocess.Popen(["code", file_path])
+        subprocess.Popen(["/usr/bin/code", file_path])
         return f"Arquivo {file_path} aberto no VS Code"
     except Exception as e:
         return f"Erro ao editar arquivo: {e}"
@@ -933,7 +1209,7 @@ def vscode_open(path: str) -> str:
     if not path:
         return "Informe o caminho."
     try:
-        subprocess.Popen(["code", path])
+        subprocess.Popen(["/usr/bin/code", path])
         return f"Aberto no VS Code: {path}"
     except Exception as e:
         return f"Erro ao abrir no VS Code: {e}"
@@ -1519,6 +1795,12 @@ FUNCTIONS = {
     "add_task": add_task,
     "list_tasks": list_tasks,
 
+    # Despertador
+    "set_alarm": set_alarm,
+    "cancel_alarm": cancel_alarm,
+    "list_alarms": list_alarms,
+    "play_alarm_sound": play_alarm_sound,
+
     # Agenda
     "add_event": add_event,
     "calendar_today": calendar_today,
@@ -1530,6 +1812,9 @@ FUNCTIONS = {
     # Deploy
     "deploy": deploy,
     "backup_dotfiles": backup_dotfiles,
+    "schedule_deploy": schedule_deploy,
+    "cancel_deploy_schedule": cancel_deploy_schedule,
+    "list_deploy_schedules": list_deploy_schedules,
 
     # ML/Stats
     "show_stats": show_stats,
@@ -1598,7 +1883,7 @@ def execute_action(action: str, target: str = "", parameters: dict = None) -> st
                                 "find_file", "git_status", "git_log", "git_pull", "git_push",
                                 "disk_health", "internet_speed",
                                 "list_reminders", "list_tasks", "calendar_today", "expense_summary",
-                                "run_command", "schedule_shutdown"]
+                                "run_command", "schedule_shutdown", "list_alarms", "play_alarm_sound"]
 
         if action in single_param_actions:
             first_param = params.get("query") or params.get("app_name") or params.get("url") or \
@@ -1623,7 +1908,7 @@ def execute_action(action: str, target: str = "", parameters: dict = None) -> st
                            "hibernate_pc", "sleep_mode", "wifi_on", "wifi_off",
                            "spotify_play", "spotify_pause", "spotify_next", "spotify_previous",
                            "click_mouse", "screenshot", "deploy", "backup_dotfiles", "cancel_shutdown",
-                           "hardware_status", "show_stats", "show_ml_stats"]
+                           "hardware_status", "show_stats", "show_ml_stats", "list_deploy_schedules"]
         if action in no_param_actions:
             return func()
 
@@ -1682,6 +1967,18 @@ def execute_action(action: str, target: str = "", parameters: dict = None) -> st
             return func(params.get("url") or target, params.get("fields") or "{}")
         if action == "browser_navigate":
             return func(params.get("url") or target)
+
+        # Despertador
+        if action == "set_alarm":
+            return func(params.get("time") or target, params.get("recurring") or "")
+        if action == "cancel_alarm":
+            return func(params.get("time") or target)
+
+        # Deploy agendado
+        if action == "schedule_deploy":
+            return func(params.get("time") or target, params.get("recurring") or "")
+        if action == "cancel_deploy_schedule":
+            return func(params.get("time") or target)
 
         # GitHub Auto
         if action in ["github_auto_commit", "github_auto_push", "github_auto_pull"]:

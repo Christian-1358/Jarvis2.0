@@ -98,6 +98,12 @@ Sua tarefa é analisar comandos do usuário e decidir QUAL AÇÃO executar.
 - add_task: Adicionar tarefa. params: text
 - list_tasks: Listar tarefas. params: (none)
 
+### Despertador:
+- set_alarm: Definir alarme/despertador. params: time (ex: "14:30" ou "14"), recurring (opcional: "diario" para diária)
+- cancel_alarm: Cancelar alarme. params: time (ex: "14:30") ou vazio para cancelar todos
+- list_alarms: Listar alarmes ativos. params: (none)
+- play_alarm_sound: Tocar som do alarme. params: (none)
+
 ### Programação:
 - generate_code: Gerar código em uma linguagem. params: language, description
 - fix_bugs: Corrigir bugs em código. params: code, language
@@ -144,6 +150,9 @@ Sua tarefa é analisar comandos do usuário e decidir QUAL AÇÃO executar.
 ### Deploy/Backup:
 - deploy: Fazer deploy. params: (none)
 - backup_dotfiles: Fazer backup dos dotfiles. params: (none)
+- schedule_deploy: Agendar deploy para uma hora. params: time (ex: "14:30" ou "14"), recurring (opcional: "diario" para diária)
+- cancel_deploy_schedule: Cancelar deploy agendado. params: time (ex: "14:30") ou vazio para cancelar todos
+- list_deploy_schedules: Listar deploys agendados. params: (none)
 
 ### Stats/ML:
 - show_stats: Ver estatísticas de uso. params: (none)

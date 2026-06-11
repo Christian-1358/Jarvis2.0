@@ -15,7 +15,7 @@ from config.settings import DATA_DIR
 class JarvisDB:
     """Banco de dados centralizado do Jarvis."""
 
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
 
     def __init__(self, db_path: Path = None):
         self.db_path = db_path or (DATA_DIR / "jarvis_core.db")
@@ -342,6 +342,109 @@ class JarvisDB:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+
+            # ============================================
+            # TABELAS DE WORKSPACE
+            # ============================================
+
+            # Workspaces (projetos)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspaces (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT,
+                    project_path TEXT,
+                    is_active BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_ws_name ON workspaces(name)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_ws_active ON workspaces(is_active)")
+
+            # Tarefas do workspace
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workspace_id INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'completed', 'cancelled')),
+                    priority INTEGER DEFAULT 3 CHECK(priority BETWEEN 1 AND 5),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wt_workspace ON workspace_tasks(workspace_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wt_status ON workspace_tasks(status)")
+
+            # Arquivos rastreados do workspace
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_files (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workspace_id INTEGER NOT NULL,
+                    file_path TEXT NOT NULL,
+                    file_type TEXT,
+                    last_modified TIMESTAMP,
+                    last_analyzed TIMESTAMP,
+                    analysis_summary TEXT,
+                    issues_count INTEGER DEFAULT 0,
+                    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wf_workspace ON workspace_files(workspace_id)")
+
+            # Histórico de ações do workspace
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workspace_id INTEGER NOT NULL,
+                    action TEXT NOT NULL,
+                    description TEXT,
+                    details TEXT,
+                    session_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wh_workspace ON workspace_history(workspace_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wh_created ON workspace_history(created_at)")
+
+            # Análises de projeto
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS workspace_analysis (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workspace_id INTEGER NOT NULL,
+                    analysis_type TEXT NOT NULL CHECK(analysis_type IN ('full', 'incremental', 'diff')),
+                    score REAL DEFAULT 100.0,
+                    issues_count INTEGER DEFAULT 0,
+                    issues_summary TEXT,
+                    suggestions_accepted INTEGER DEFAULT 0,
+                    suggestions_rejected INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_wa_workspace ON workspace_analysis(workspace_id)")
+
+            # Resumos de conversas
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS conversation_summaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workspace_id INTEGER,
+                    session_id TEXT NOT NULL,
+                    summary_text TEXT NOT NULL,
+                    key_topics TEXT,
+                    decisions TEXT,
+                    next_steps TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_cs_session ON conversation_summaries(session_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_cs_workspace ON conversation_summaries(workspace_id)")
 
             # ============================================
             # TABELAS DE CONFIGURAÇÃO
@@ -674,6 +777,8 @@ class JarvisDB:
         """Incrementa contador de uso de uma ação."""
         today = datetime.now().strftime('%Y-%m-%d')
         hour = datetime.now().hour
+        success_count = 1 if success else 0
+        failure_count = 0 if success else 1
 
         with self._conn() as conn:
             conn.execute("""
@@ -682,13 +787,13 @@ class JarvisDB:
                 ON CONFLICT(date, hour, action) DO UPDATE SET
                     count = count + 1,
                     avg_execution_time_ms = COALESCE(
-                        (avg_execution_time_ms * count + ?) / (count + 1),
+                        (avg_execution_time_ms * count + excluded.avg_execution_time_ms) / (count + 1),
                         avg_execution_time_ms
                     ),
-                    success_count = success_count + ?,
-                    failure_count = failure_count + ?
+                    success_count = success_count + excluded.success_count,
+                    failure_count = failure_count + excluded.failure_count
             """, (today, hour, action, execution_time_ms,
-                  1 if success else 0, 0 if success else 0, 0 if success else 1))
+                  success_count, failure_count))
 
     def get_usage_summary(self, days: int = 7) -> Dict:
         """Retorna resumo de uso."""
@@ -775,6 +880,302 @@ class JarvisDB:
             """, (action,))
             row = cursor.fetchone()
             return row and row[0]
+
+    # ============================================
+    # MÉTODOS DE WORKSPACES
+    # ============================================
+
+    def create_workspace(self, name: str, description: str = "",
+                        project_path: str = None) -> int:
+        """Cria um novo workspace."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                INSERT INTO workspaces (name, description, project_path)
+                VALUES (?, ?, ?)
+            """, (name, description, project_path))
+            return cursor.lastrowid
+
+    def get_workspace(self, name: str) -> Optional[Dict]:
+        """Obtém workspace pelo nome."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, name, description, project_path, is_active, created_at, updated_at
+                FROM workspaces WHERE name = ?
+            """, (name,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_workspace_by_id(self, workspace_id: int) -> Optional[Dict]:
+        """Obtém workspace pelo ID."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, name, description, project_path, is_active, created_at, updated_at
+                FROM workspaces WHERE id = ?
+            """, (workspace_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def set_active_workspace(self, name: str) -> bool:
+        """Define workspace ativo (desativa os outros)."""
+        with self._conn() as conn:
+            conn.execute("UPDATE workspaces SET is_active = FALSE")
+            conn.execute("UPDATE workspaces SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE name = ?",
+                        (name,))
+            return True
+
+    def get_active_workspace(self) -> Optional[Dict]:
+        """Retorna workspace ativo."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, name, description, project_path, is_active, created_at, updated_at
+                FROM workspaces WHERE is_active = TRUE
+            """)
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def list_workspaces(self) -> List[Dict]:
+        """Lista todos os workspaces."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, name, description, project_path, is_active, created_at, updated_at
+                FROM workspaces ORDER BY is_active DESC, updated_at DESC
+            """)
+            return [dict(row) for row in cursor.fetchall()]
+
+    # --- Workspace Tasks ---
+
+    def add_workspace_task(self, workspace_id: int, title: str,
+                          description: str = "", priority: int = 3) -> int:
+        """Adiciona tarefa ao workspace."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                INSERT INTO workspace_tasks (workspace_id, title, description, priority)
+                VALUES (?, ?, ?, ?)
+            """, (workspace_id, title, description, priority))
+            return cursor.lastrowid
+
+    def get_workspace_tasks(self, workspace_id: int,
+                           status: str = None) -> List[Dict]:
+        """Retorna tarefas do workspace."""
+        with self._conn() as conn:
+            if status:
+                cursor = conn.execute("""
+                    SELECT id, workspace_id, title, description, status, priority,
+                           created_at, updated_at, completed_at
+                    FROM workspace_tasks
+                    WHERE workspace_id = ? AND status = ?
+                    ORDER BY priority DESC, created_at DESC
+                """, (workspace_id, status))
+            else:
+                cursor = conn.execute("""
+                    SELECT id, workspace_id, title, description, status, priority,
+                           created_at, updated_at, completed_at
+                    FROM workspace_tasks
+                    WHERE workspace_id = ?
+                    ORDER BY status, priority DESC, created_at DESC
+                """, (workspace_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def update_task_status(self, task_id: int, status: str) -> bool:
+        """Atualiza status de tarefa."""
+        with self._conn() as conn:
+            completed_at = "CURRENT_TIMESTAMP" if status == "completed" else "NULL"
+            conn.execute(f"""
+                UPDATE workspace_tasks
+                SET status = ?, updated_at = CURRENT_TIMESTAMP,
+                    completed_at = {'CURRENT_TIMESTAMP' if status == 'completed' else 'NULL'}
+                WHERE id = ?
+            """, (status, task_id))
+            return True
+
+    # --- Workspace Files ---
+
+    def track_workspace_file(self, workspace_id: int, file_path: str,
+                            file_type: str = "") -> int:
+        """Rastreia arquivo no workspace."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                INSERT INTO workspace_files (workspace_id, file_path, file_type)
+                VALUES (?, ?, ?)
+                ON CONFLICT(workspace_id, file_path) DO UPDATE SET
+                    last_modified = CURRENT_TIMESTAMP,
+                    file_type = COALESCE(excluded.file_type, file_type)
+            """, (workspace_id, file_path, file_type))
+            return cursor.lastrowid
+
+    def get_workspace_files(self, workspace_id: int) -> List[Dict]:
+        """Retorna arquivos rastreados do workspace."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, workspace_id, file_path, file_type, last_modified,
+                       last_analyzed, analysis_summary, issues_count
+                FROM workspace_files
+                WHERE workspace_id = ?
+                ORDER BY last_modified DESC
+            """, (workspace_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def update_file_analysis(self, file_id: int, summary: str, issues_count: int):
+        """Atualiza análise de arquivo."""
+        with self._conn() as conn:
+            conn.execute("""
+                UPDATE workspace_files
+                SET analysis_summary = ?, issues_count = ?, last_analyzed = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (summary, issues_count, file_id))
+
+    # --- Workspace History ---
+
+    def log_workspace_action(self, workspace_id: int, action: str,
+                            description: str = "", details: dict = None,
+                            session_id: str = None):
+        """Registra ação no workspace."""
+        import json
+        with self._conn() as conn:
+            conn.execute("""
+                INSERT INTO workspace_history (workspace_id, action, description, details, session_id)
+                VALUES (?, ?, ?, ?, ?)
+            """, (workspace_id, action, description,
+                  json.dumps(details) if details else None, session_id))
+
+    def get_workspace_history(self, workspace_id: int, limit: int = 20) -> List[Dict]:
+        """Retorna histórico do workspace."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, workspace_id, action, description, details, session_id, created_at
+                FROM workspace_history
+                WHERE workspace_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (workspace_id, limit))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_workspace_history_by_date(self, workspace_id: int, date: str) -> List[Dict]:
+        """Retorna histórico do workspace para uma data específica."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, workspace_id, action, description, details, session_id, created_at
+                FROM workspace_history
+                WHERE workspace_id = ? AND date(created_at) = ?
+                ORDER BY created_at DESC
+            """, (workspace_id, date))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_workspace_yesterday_actions(self, workspace_id: int) -> List[Dict]:
+        """Retorna ações de ontem do workspace."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, workspace_id, action, description, details, session_id, created_at
+                FROM workspace_history
+                WHERE workspace_id = ? AND date(created_at) = date('now', '-1 day')
+                ORDER BY created_at DESC
+            """, (workspace_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    # --- Workspace Analysis ---
+
+    def save_workspace_analysis(self, workspace_id: int, analysis_type: str,
+                               score: float, issues: list = None,
+                               suggestions_accepted: int = 0,
+                               suggestions_rejected: int = 0) -> int:
+        """Salva análise de workspace."""
+        import json
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                INSERT INTO workspace_analysis
+                (workspace_id, analysis_type, score, issues_summary,
+                 suggestions_accepted, suggestions_rejected)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (workspace_id, analysis_type, score,
+                  json.dumps(issues) if issues else None,
+                  suggestions_accepted, suggestions_rejected))
+            return cursor.lastrowid
+
+    def get_last_workspace_analysis(self, workspace_id: int) -> Optional[Dict]:
+        """Retorna última análise do workspace."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, workspace_id, analysis_type, score, issues_count,
+                       issues_summary, suggestions_accepted, suggestions_rejected, created_at
+                FROM workspace_analysis
+                WHERE workspace_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (workspace_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_workspace_analysis_history(self, workspace_id: int, limit: int = 10) -> List[Dict]:
+        """Retorna histórico de análises do workspace."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, workspace_id, analysis_type, score, issues_count,
+                       issues_summary, suggestions_accepted, suggestions_rejected, created_at
+                FROM workspace_analysis
+                WHERE workspace_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (workspace_id, limit))
+            return [dict(row) for row in cursor.fetchall()]
+
+    # --- Conversation Summaries ---
+
+    def save_conversation_summary(self, workspace_id: int, session_id: str,
+                                  summary_text: str, key_topics: list = None,
+                                  decisions: list = None, next_steps: str = None) -> int:
+        """Salva resumo de conversa."""
+        import json
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                INSERT INTO conversation_summaries
+                (workspace_id, session_id, summary_text, key_topics, decisions, next_steps)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (workspace_id, session_id, summary_text,
+                  json.dumps(key_topics) if key_topics else None,
+                  json.dumps(decisions) if decisions else None, next_steps))
+            return cursor.lastrowid
+
+    def get_conversation_summary(self, session_id: str) -> Optional[Dict]:
+        """Retorna resumo de conversa."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, workspace_id, session_id, summary_text, key_topics,
+                       decisions, next_steps, created_at
+                FROM conversation_summaries
+                WHERE session_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (session_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_workspace_summaries(self, workspace_id: int, limit: int = 10) -> List[Dict]:
+        """Retorna resumos de conversas do workspace."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT id, workspace_id, session_id, summary_text, key_topics,
+                       decisions, next_steps, created_at
+                FROM conversation_summaries
+                WHERE workspace_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (workspace_id, limit))
+            return [dict(row) for row in cursor.fetchall()]
+
+    # --- Recurring Issues ---
+
+    def get_recurring_issues(self, workspace_id: int, min_occurrences: int = 2) -> List[Dict]:
+        """Retorna issues recorrentes no workspace."""
+        with self._conn() as conn:
+            cursor = conn.execute("""
+                SELECT action, description, COUNT(*) as count
+                FROM workspace_history
+                WHERE workspace_id = ? AND action LIKE '%error%' OR action LIKE '%fail%'
+                GROUP BY action, description
+                HAVING COUNT(*) >= ?
+                ORDER BY count DESC
+            """, (workspace_id, min_occurrences))
+            return [dict(row) for row in cursor.fetchall()]
 
     # ============================================
     # EXPORTAÇÃO E BACKUP
