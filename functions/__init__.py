@@ -103,10 +103,43 @@ def open_site(url: str) -> str:
         return f"Erro ao abrir site: {e}"
 
 
+
+def close_browser_tab(browser: str = "chrome") -> str:
+    """Fecha a aba ativa do navegador usando Ctrl+W."""
+    try:
+        # Map browser names
+        browser_map = {
+            "chrome": "google-chrome",
+            "firefox": "firefox",
+            "edge": "msedge",
+        }
+        browser_exec = browser_map.get(browser, "google-chrome")
+        
+        # Send Ctrl+W to close current tab
+        subprocess.run(["xdotool", "key", "--window", "any", "ctrl+w"], capture_output=True, timeout=2)
+        return f"Fechando aba do {browser}"
+    except Exception as e:
+        return f"Erro ao fechar aba: {e}"
+
+
 def close_app(app_name: str) -> str:
+    """Fecha aplicativo ou aba específica."""
     if not app_name:
         return "Informe o nome do aplicativo."
 
+    app_lower = app_name.lower().strip()
+    
+    # Apps que devem fechar abas específicas no navegador
+    tab_apps = ["pesquisa", "navegador", "google", "watts", "whatsapp", "youtube", 
+                "chrome", "firefox", "edge", "tab", "aba"]
+    
+    if any(t in app_lower for t in tab_apps) and "chrome" not in app_lower and "firefox" not in app_lower:
+        # Fechar aba no Chrome
+        return close_browser_tab("chrome")
+    elif app_lower in ["chrome", "firefox", "edge", "navegador"]:
+        # Fechar navegador completo
+        return close_browser_tab(app_lower)
+    
     # Mapeamento de nomes comuns para nomes de processos
     process_mapping = {
         "whatsapp": "whatsapp-desktop",
@@ -128,18 +161,15 @@ def close_app(app_name: str) -> str:
         "brave": "brave-browser",
     }
 
-    app_lower = app_name.lower().strip()
     process_name = process_mapping.get(app_lower, app_lower)
 
     try:
         if sys.platform == "linux":
-            # Primeiro tenta killall
             result = subprocess.run(
                 ["killall", "-9", process_name],
                 capture_output=True, timeout=5
             )
             if result.returncode != 0:
-                # Tenta com o nome original
                 result = subprocess.run(
                     ["killall", "-9", app_lower],
                     capture_output=True, timeout=5

@@ -264,7 +264,7 @@
       "command": "pesquise oi",
       "action": "search_web",
       "timestamp": "2026-06-11T16:49:22.588252"
-    },
+    },  
     {
       "command": "fefechar pesquisa",
       "action": "close_app",
@@ -299,6 +299,51 @@
       "command": "abra o whatsapp",
       "action": "open_app",
       "timestamp": "2026-06-11T16:59:53.744187"
+    },
+    {
+      "command": "fa\u00e7a deploy",
+      "action": "deploy",
+      "timestamp": "2026-06-11T16:59:58.194316"
+    },
+    {
+      "command": "adicione tarefa testar coisas",
+      "action": "add_task",
+      "timestamp": "2026-06-11T17:00:56.439625"
+    },
+    {
+      "command": "liste tarefas",
+      "action": "list_tasks",
+      "timestamp": "2026-06-11T17:00:59.168580"
+    },
+    {
+      "command": "fechar pesquisa",
+      "action": "close_app",
+      "timestamp": "2026-06-11T17:02:49.453663"
+    },
+    {
+      "command": "fechar watts",
+      "action": "close_app",
+      "timestamp": "2026-06-11T17:02:51.575808"
+    },
+    {
+      "command": "fechar pesquisa",
+      "action": "close_app",
+      "timestamp": "2026-06-11T17:03:33.924863"
+    },
+    {
+      "command": "fechar watts",
+      "action": "close_app",
+      "timestamp": "2026-06-11T17:03:36.067734"
+    },
+    {
+      "command": "fechar youtube",
+      "action": "close_app",
+      "timestamp": "2026-06-11T17:03:38.252121"
+    },
+    {
+      "command": "fechar chrome",
+      "action": "close_app",
+      "timestamp": "2026-06-11T17:03:40.700214"
     }
   ]
 }

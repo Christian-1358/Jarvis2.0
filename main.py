@@ -555,7 +555,7 @@ class JarvisMiniMax:
             question_lower = command.lower()
             project_keywords = ["onde parei", "onde eu parei", "o que fiz ontem",
                               "problema", "erro recorrente", "última análise",
-                              "tarefa", "pendente", "workspace", "projeto atual"]
+                              "tarefas pendentes", "workspace ativo", "projeto atual"]
 
             if any(kw in question_lower for kw in project_keywords):
                 answer = self.context_builder.answer_project_question(command)
