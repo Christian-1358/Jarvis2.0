@@ -1,7 +1,6 @@
 """
 Análise de uso - Estatísticas e insights de uso do Jarvis
 """
-
 import json
 from pathlib import Path
 from collections import Counter, defaultdict
@@ -98,8 +97,7 @@ class UsageAnalytics:
             lines.append(f"  {i}. {action}: {count}x")
 
         if summary["peak_hour"] is not None:
-            peak = int(summary["peak_hour"])
-            hour_str = f"{peak:02d}:00"
+            hour_str = f"{summary['peak_hour']:02d}:00"
             lines.append(f"\n⏰ Horário de maior atividade: {hour_str}")
 
         return "\n".join(lines)
