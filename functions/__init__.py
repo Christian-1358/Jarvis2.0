@@ -43,9 +43,17 @@ def open_app(app_name: str) -> str:
     if not app_name:
         return "Informe o nome do aplicativo."
 
+    # Apps que devem abrir no navegador (web apps)
+    web_apps = ["whatsapp", "whatsapp web", "web whatsapp"]
+
+    app_lower = app_name.lower().strip()
+
+    # Se é um web app, abrir no navegador
+    if app_lower in web_apps:
+        return open_site("https://web.whatsapp.com")
+
     # Mapeamento de nomes comuns para comandos corretos no Linux
     app_mapping = {
-        "whatsapp": "whatsapp-desktop",
         "chrome": "google-chrome",
         "code": "code",
         "vscode": "code",
@@ -62,7 +70,6 @@ def open_app(app_name: str) -> str:
         "edge": "msedge",
     }
 
-    app_lower = app_name.lower().strip()
     command = app_mapping.get(app_lower, app_lower)
 
     try:
