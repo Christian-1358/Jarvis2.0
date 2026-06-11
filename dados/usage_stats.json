@@ -32,11 +32,13 @@
       "analyzer_ml_status",
       "analyzer_feedback",
       "analyzer_ml_status",
+      "deploy",
       "deploy"
     ],
     "hourly": {
       "13": 1,
       "14": 2,
+      "15": 1,
       "15": 1
     }
   }
