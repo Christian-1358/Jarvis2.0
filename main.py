@@ -31,6 +31,14 @@ from core.minimax_client import analyze_command
 from functions import execute_action
 from config.settings import WAKE_WORD
 
+# ML tracking
+try:
+    from ml.command_predictor import add_command
+    from ml.usage_analytics import record_action
+    ML_AVAILABLE = True
+except ImportError:
+    ML_AVAILABLE = False
+
 
 class JarvisMiniMax:
     def __init__(self):
@@ -167,6 +175,15 @@ class JarvisMiniMax:
         print(f"[DECISÃO] action={action}, target={target}")
 
         result = execute_action(action, target, parameters)
+
+        # Registrar para ML
+        if ML_AVAILABLE:
+            try:
+                add_command(command, action)
+                if action != "chat" and action != "error":
+                    record_action(action)
+            except Exception:
+                pass
 
         return result
 

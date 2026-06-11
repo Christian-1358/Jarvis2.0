@@ -20,10 +20,8 @@ class MiniMaxClient:
 
     def _get_headers(self) -> dict:
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "X-Api-Key": self.api_key,
             "Content-Type": "application/json",
-            "HTTP-Referer": "JarvisMiniMax",
-            "X-Title": "JarvisMiniMax"
         }
         return headers
 
@@ -100,6 +98,30 @@ Sua tarefa é analisar comandos do usuário e decidir QUAL AÇÃO executar.
 - add_task: Adicionar tarefa. params: text
 - list_tasks: Listar tarefas. params: (none)
 
+### Programação:
+- generate_code: Gerar código em uma linguagem. params: language, description
+- fix_bugs: Corrigir bugs em código. params: code, language
+- refactor_code: Refatorar código. params: code, language
+- generate_html: Gerar código HTML. params: description
+- generate_css: Gerar código CSS. params: description
+- generate_api: Gerar estrutura de API. params: framework, name
+
+### VS Code:
+- vscode_create_project: Criar projeto no VS Code. params: project_name, template
+- vscode_edit_file: Editar arquivo no VS Code. params: file_path, content
+- vscode_install_extension: Instalar extensão no VS Code. params: extension_id
+- vscode_open: Abrir arquivo/pasta no VS Code. params: path
+
+### Navegador:
+- browser_automate: Automatizar tarefa no navegador. params: task
+- browser_fill_form: Preencher formulário web. params: url, fields
+- browser_navigate: Navegar para URL. params: url
+
+### GitHub:
+- github_auto_commit: Commit automático com mensagem gerada. params: (none)
+- github_auto_push: Push automático. params: (none)
+- github_auto_pull: Pull automático. params: (none)
+
 ### Agenda:
 - add_event: Adicionar evento. params: title, date
 - calendar_today: Ver eventos de hoje. params: (none)
@@ -122,6 +144,13 @@ Sua tarefa é analisar comandos do usuário e decidir QUAL AÇÃO executar.
 ### Deploy/Backup:
 - deploy: Fazer deploy. params: (none)
 - backup_dotfiles: Fazer backup dos dotfiles. params: (none)
+
+### Stats/ML:
+- show_stats: Ver estatísticas de uso. params: (none)
+- show_ml_stats: Ver estatísticas de ML (comandos mais usados). params: (none)
+- train_ml: Treinar o modelo de ML. params: (none)
+- training_status: Ver status do treinamento. params: (none)
+- feedback: Registrar feedback para melhorar o modelo. params: command, predicted, correct, rating
 
 ### Comandos:
 - run_command: Executar comando no terminal. params: command
@@ -173,7 +202,7 @@ Se o usuário quiser algo que não está nas ações disponíveis ou for só con
                 "max_tokens": 500,
                 "system": system_prompt,
                 "messages": [
-                    {"role": "user", "content": command}
+                    {"role": "user", "content": [{"type": "text", "text": command}]}
                 ]
             }
 
@@ -219,6 +248,26 @@ Se o usuário quiser algo que não está nas ações disponíveis ou for só con
         except Exception as e:
             print(f"[ERRO] {e}")
             return {"action": "error", "target": str(e), "parameters": {}}
+
+    def _call_llm(self, prompt: str) -> str:
+        """Faz uma chamada direta ao LLM para geração de conteúdo."""
+        try:
+            url = f"{self.base_url}/messages"
+            payload = {
+                "model": self.model,
+                "max_tokens": 2000,
+                "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+            }
+            response = requests.post(url, headers=self._get_headers(), json=payload, timeout=API_TIMEOUT)
+            if response.status_code == 200:
+                result = response.json()
+                for item in result.get("content", []):
+                    if item.get("type") == "text":
+                        return item.get("text", "")
+            return ""
+        except Exception as e:
+            print(f"[ERRO LLM] {e}")
+            return ""
 
 
 _client: Optional[MiniMaxClient] = None

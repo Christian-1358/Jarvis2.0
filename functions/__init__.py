@@ -749,8 +749,269 @@ def calendar_today() -> str:
 # DEPLOY / BACKUP
 # ========================
 
+# ========================
+# PROGRAMAÇÃO
+# ========================
+
+def generate_code(language: str, description: str) -> str:
+    """Gera código na linguagem especificada baseado na descrição."""
+    if not description:
+        return "Informe a descrição do código a gerar."
+    try:
+        from core.minimax_client import get_client
+        client = get_client()
+        prompt = f"""Gere código em {language or 'Python'} para: {description}
+Retorne apenas o código, sem explicações. Use markdown com ``` para destacar o código."""
+        result = client._call_llm(prompt)
+        return f"```\n{result}\n```" if result else "Não consegui gerar o código."
+    except Exception as e:
+        return f"Erro ao gerar código: {e}"
+
+
+def fix_bugs(code: str, language: str = "") -> str:
+    """Corrige bugs no código fornecido."""
+    if not code:
+        return "Informe o código com bugs."
+    try:
+        from core.minimax_client import get_client
+        client = get_client()
+        prompt = f"""Analise e corrija os bugs no seguinte código ({language or 'Python'}):
+```{code}```
+Retorne o código corrigido com uma breve explicação das correções."""
+        result = client._call_llm(prompt)
+        return f"Código corrigido:\n```\n{result}\n```" if result else "Não consegui corrigir o código."
+    except Exception as e:
+        return f"Erro ao corrigir bugs: {e}"
+
+
+def refactor_code(code: str, language: str = "") -> str:
+    """Refatora o código para melhor qualidade."""
+    if not code:
+        return "Informe o código a refatorar."
+    try:
+        from core.minimax_client import get_client
+        client = get_client()
+        prompt = f"""Refatore o seguinte código ({language or 'Python'}) para melhor legibilidade e performance:
+```{code}```
+Retorne o código refatorado com uma breve explicação."""
+        result = client._call_llm(prompt)
+        return f"Código refatorado:\n```\n{result}\n```" if result else "Não consegui refatorar o código."
+    except Exception as e:
+        return f"Erro ao refatorar código: {e}"
+
+
+def generate_html(description: str) -> str:
+    """Gera código HTML baseado na descrição."""
+    if not description:
+        return "Informe a descrição do HTML a gerar."
+    try:
+        from core.minimax_client import get_client
+        client = get_client()
+        prompt = f"""Gere código HTML completo e bem estruturado para: {description}
+Retorne apenas o código HTML válido."""
+        result = client._call_llm(prompt)
+        return f"```html\n{result}\n```" if result else "Não consegui gerar o HTML."
+    except Exception as e:
+        return f"Erro ao gerar HTML: {e}"
+
+
+def generate_css(description: str) -> str:
+    """Gera código CSS baseado na descrição."""
+    if not description:
+        return "Informe a descrição do CSS a gerar."
+    try:
+        from core.minimax_client import get_client
+        client = get_client()
+        prompt = f"""Gere código CSS para: {description}
+Retorne apenas o código CSS válido."""
+        result = client._call_llm(prompt)
+        return f"```css\n{result}\n```" if result else "Não consegui gerar o CSS."
+    except Exception as e:
+        return f"Erro ao gerar CSS: {e}"
+
+
+def generate_api(framework: str, name: str) -> str:
+    """Gera estrutura de API REST."""
+    if not name:
+        return "Informe o nome da API."
+    framework = framework or "flask"
+    try:
+        from core.minimax_client import get_client
+        client = get_client()
+        prompt = f"""Gere a estrutura básica de uma API REST em {framework} chamada {name}.
+Inclua: rotas principais, models básicos, configuração.
+Retorne apenas o código."""
+        result = client._call_llm(prompt)
+        return f"```python\n{result}\n```" if result else "Não consegui gerar a API."
+    except Exception as e:
+        return f"Erro ao gerar API: {e}"
+
+
+# ========================
+# VS CODE
+# ========================
+
+def vscode_create_project(project_name: str, template: str = "") -> str:
+    """Cria um novo projeto no VS Code."""
+    if not project_name:
+        return "Informe o nome do projeto."
+    try:
+        from config.settings import BASE_DIR
+        project_path = BASE_DIR / project_name
+        if project_path.exists():
+            return f"Projeto já existe: {project_path}"
+        project_path.mkdir(parents=True, exist_ok=True)
+        if template:
+            create_file(str(project_path / "README.md"), f"# {project_name}\n\nTemplate: {template}")
+        subprocess.Popen(["code", str(project_path)])
+        return f"Projeto {project_name} criado e aberto no VS Code"
+    except Exception as e:
+        return f"Erro ao criar projeto: {e}"
+
+
+def vscode_edit_file(file_path: str, content: str) -> str:
+    """Edita um arquivo no VS Code."""
+    if not file_path:
+        return "Informe o caminho do arquivo."
+    try:
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(file_path).write_text(content or "", encoding="utf-8")
+        subprocess.Popen(["code", file_path])
+        return f"Arquivo {file_path} aberto no VS Code"
+    except Exception as e:
+        return f"Erro ao editar arquivo: {e}"
+
+
+def vscode_install_extension(extension_id: str) -> str:
+    """Instala uma extensão no VS Code."""
+    if not extension_id:
+        return "Informe o ID da extensão."
+    try:
+        result = subprocess.run(["code", "--install-extension", extension_id],
+                             capture_output=True, text=True)
+        if result.returncode == 0:
+            return f"Extensão {extension_id} instalada com sucesso"
+        return f"Erro ao instalar extensão: {result.stderr}"
+    except Exception as e:
+        return f"Erro ao instalar extensão: {e}"
+
+
+def vscode_open(path: str) -> str:
+    """Abre arquivo ou pasta no VS Code."""
+    if not path:
+        return "Informe o caminho."
+    try:
+        subprocess.Popen(["code", path])
+        return f"Aberto no VS Code: {path}"
+    except Exception as e:
+        return f"Erro ao abrir no VS Code: {e}"
+
+
+# ========================
+# NAVEGADOR
+# ========================
+
+def browser_automate(task: str) -> str:
+    """Automatiza tarefas no navegador."""
+    if not task:
+        return "Informe a tarefa a automatizar."
+    try:
+        import pyautogui
+        import webbrowser
+        webbrowser.open("https://www.google.com")
+        time.sleep(2)
+        pyautogui.hotkey("ctrl", "l")
+        pyautogui.write(task, interval=0.05)
+        pyautogui.press("enter")
+        return f"Automatizando tarefa: {task}"
+    except Exception as e:
+        return f"Erro ao automatizar: {e}"
+
+
+def browser_fill_form(url: str, fields: str) -> str:
+    """Preenche formulário web."""
+    if not url:
+        return "Informe a URL do formulário."
+    try:
+        import json
+        fields_dict = json.loads(fields) if fields else {}
+        webbrowser.open(url)
+        time.sleep(3)
+        for field_name, value in fields_dict.items():
+            pyautogui.write(str(value), interval=0.05)
+            pyautogui.press("tab")
+        return f"Formulário preenchido com {len(fields_dict)} campos"
+    except json.JSONDecodeError:
+        return "Formato de campos inválido. Use JSON."
+    except Exception as e:
+        return f"Erro ao preencher formulário: {e}"
+
+
+def browser_navigate(url: str) -> str:
+    """Navega para URL no navegador."""
+    if not url:
+        return "Informe a URL."
+    if not url.startswith("http"):
+        url = "https://" + url
+    try:
+        webbrowser.open(url)
+        return f"Navegando para: {url}"
+    except Exception as e:
+        return f"Erro ao navegar: {e}"
+
+
+# ========================
+# GITHUB AUTO
+# ========================
+
+def github_auto_commit() -> str:
+    """Faz commit automático com mensagem gerada."""
+    try:
+        from config.settings import BASE_DIR
+        result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, cwd=BASE_DIR)
+        if not result.stdout.strip():
+            return "Nada para commitar"
+        subprocess.run(["git", "add", "."], cwd=BASE_DIR)
+        result = subprocess.run(["git", "diff", "--staged"], capture_output=True, text=True, cwd=BASE_DIR)
+        changes = result.stdout[:200] if result.stdout else "alterações"
+        commit_msg = f"Update: {changes[:50]}..."
+        result = subprocess.run(["git", "commit", "-m", commit_msg], capture_output=True, text=True, cwd=BASE_DIR)
+        return f"Commit automático: {commit_msg}"
+    except Exception as e:
+        return f"Erro no commit: {e}"
+
+
+def github_auto_push() -> str:
+    """Faz push automático."""
+    try:
+        from config.settings import BASE_DIR
+        result = subprocess.run(["git", "push"], capture_output=True, text=True, cwd=BASE_DIR)
+        if result.returncode == 0:
+            return "Push automático realizado"
+        return f"Erro no push: {result.stderr}"
+    except Exception as e:
+        return f"Erro ao fazer push: {e}"
+
+
+def github_auto_pull() -> str:
+    """Faz pull automático."""
+    try:
+        from config.settings import BASE_DIR
+        result = subprocess.run(["git", "pull"], capture_output=True, text=True, cwd=BASE_DIR)
+        if result.returncode == 0:
+            return "Pull automático realizado"
+        return f"Erro no pull: {result.stderr}"
+    except Exception as e:
+        return f"Erro ao fazer pull: {e}"
+
+
+# ========================
+# DEPLOY / BACKUP
+# ========================
+
 def deploy() -> str:
     return "Funcionalidade de deploy não implementada - configure seu script de deploy"
+
 
 def backup_dotfiles() -> str:
     try:
@@ -763,6 +1024,127 @@ def backup_dotfiles() -> str:
         return f"Erro no backup: {result.stderr}"
     except Exception as e:
         return f"Erro ao fazer backup: {e}"
+
+
+# ========================
+# MACHINE LEARNING / STATS
+# ========================
+
+def show_stats() -> str:
+    """Mostra estatísticas de uso do Jarvis."""
+    try:
+        from ml.usage_analytics import get_weekly_report
+        return get_weekly_report()
+    except ImportError:
+        return "Módulo de analytics não disponível"
+    except Exception as e:
+        return f"Erro ao buscar estatísticas: {e}"
+
+
+def show_ml_stats() -> str:
+    """Mostra estatísticas do modelo de ML."""
+    try:
+        from ml.command_predictor import get_stats
+        stats = get_stats()
+
+        if stats["total_commands"] == 0:
+            return "Sem dados suficientes para análise de ML. Continue usando o Jarvis!"
+
+        lines = [
+            "🧠 Estatísticas de Machine Learning",
+            "=" * 35,
+            f"Total de comandos: {stats['total_commands']}",
+            f"Ações únicas: {stats['unique_actions']}",
+            "",
+            "📈 Top 5 ações:",
+        ]
+
+        for i, (action, count) in enumerate(stats["top_actions"], 1):
+            lines.append(f"  {i}. {action}: {count}x")
+
+        return "\n".join(lines)
+    except ImportError:
+        return "Módulo de ML não disponível"
+    except Exception as e:
+        return f"Erro ao buscar estatísticas de ML: {e}"
+
+
+def train_ml() -> str:
+    """Treina o modelo de ML com os dados coletados."""
+    try:
+        from ml.trainer import train_model
+        result = train_model()
+
+        if result["status"] == "insufficient_data":
+            return f"📚 Dados insuficientes: {result['samples']}/5 necessários. Continue usando o Jarvis!"
+
+        return (f"✅ Modelo treinado!\n"
+                f"   Amostras: {result['samples']}\n"
+                f"   Accuracy: {result['accuracy']:.1f}%\n"
+                f"   Padrões aprendidos: {result['patterns_learned']}")
+    except ImportError:
+        return "Módulo de treinamento não disponível"
+    except Exception as e:
+        return f"Erro no treinamento: {e}"
+
+
+def feedback(command: str, predicted: str, correct: str = None, rating: str = "0") -> str:
+    """
+    Registra feedback do usuário para melhorar o modelo.
+    Uso: feedback "comando" "ação prevista" "ação correta" "rating"
+    rating: -1 (errado), 0 (neutro), 1 (correto)
+    """
+    try:
+        from ml.trainer import add_feedback
+
+        rating_int = int(rating) if rating else 0
+
+        if correct:
+            add_feedback(command, predicted, correct, rating_int)
+        else:
+            add_feedback(command, predicted, None, rating_int)
+
+        if correct and correct != predicted:
+            return f"📝 Feedback registrado: '{command}' → {correct} (corrigido de {predicted})"
+        elif rating_int == 1:
+            return f"👍 Feedback positivo registrado para '{command}'"
+        elif rating_int == -1:
+            return f"👎 Feedback negativo registrado para '{command}' → {predicted}"
+        else:
+            return f"📝 Feedback registrado para '{command}'"
+    except ImportError:
+        return "Módulo de treinamento não disponível"
+    except Exception as e:
+        return f"Erro ao registrar feedback: {e}"
+
+
+def training_status() -> str:
+    """Mostra status atual do treinamento."""
+    try:
+        from ml.trainer import get_training_stats
+        stats = get_training_stats()
+
+        lines = [
+            "📊 Status do Treinamento",
+            "=" * 30,
+            f"Total de feedback: {stats['total_feedback']}",
+            f"Amostras de treino: {stats['training_samples']}",
+            f"Correções: {stats['corrections']}",
+            f"Confirmações: {stats['confirmations']}",
+        ]
+
+        if stats['last_update']:
+            lines.append(f"Último comando: {stats['last_update'][:50]}...")
+
+        if stats['training_samples'] < 5:
+            lines.append("")
+            lines.append("💡 Dica: Use 'feedback' para ensinar o Jarvis!")
+
+        return "\n".join(lines)
+    except ImportError:
+        return "Módulo de treinamento não disponível"
+    except Exception as e:
+        return f"Erro ao buscar status: {e}"
 
 
 # ========================
@@ -858,8 +1240,39 @@ FUNCTIONS = {
     "deploy": deploy,
     "backup_dotfiles": backup_dotfiles,
 
+    # ML/Stats
+    "show_stats": show_stats,
+    "show_ml_stats": show_ml_stats,
+    "train_ml": train_ml,
+    "feedback": feedback,
+    "training_status": training_status,
+
     # Comandos
     "run_command": run_command,
+
+    # Programação
+    "generate_code": generate_code,
+    "fix_bugs": fix_bugs,
+    "refactor_code": refactor_code,
+    "generate_html": generate_html,
+    "generate_css": generate_css,
+    "generate_api": generate_api,
+
+    # VS Code
+    "vscode_create_project": vscode_create_project,
+    "vscode_edit_file": vscode_edit_file,
+    "vscode_install_extension": vscode_install_extension,
+    "vscode_open": vscode_open,
+
+    # Navegador
+    "browser_automate": browser_automate,
+    "browser_fill_form": browser_fill_form,
+    "browser_navigate": browser_navigate,
+
+    # GitHub Auto
+    "github_auto_commit": github_auto_commit,
+    "github_auto_push": github_auto_push,
+    "github_auto_pull": github_auto_pull,
 }
 
 
@@ -878,7 +1291,7 @@ def execute_action(action: str, target: str = "", parameters: dict = None) -> st
         single_param_actions = ["search_web", "open_app", "open_site", "close_app", "open_folder",
                                 "create_file", "read_file", "delete_file", "organize_folder",
                                 "find_file", "git_status", "git_log", "git_pull", "git_push",
-                                "hardware_status", "disk_health", "internet_speed",
+                                "disk_health", "internet_speed",
                                 "list_reminders", "list_tasks", "calendar_today", "expense_summary",
                                 "run_command", "schedule_shutdown"]
 
@@ -904,7 +1317,8 @@ def execute_action(action: str, target: str = "", parameters: dict = None) -> st
         no_param_actions = ["volume_up", "volume_down", "mute", "shutdown_pc", "restart_pc",
                            "hibernate_pc", "sleep_mode", "wifi_on", "wifi_off",
                            "spotify_play", "spotify_pause", "spotify_next", "spotify_previous",
-                           "click_mouse", "screenshot", "deploy", "backup_dotfiles", "cancel_shutdown"]
+                           "click_mouse", "screenshot", "deploy", "backup_dotfiles", "cancel_shutdown",
+                           "hardware_status", "show_stats", "show_ml_stats"]
         if action in no_param_actions:
             return func()
 
@@ -931,6 +1345,42 @@ def execute_action(action: str, target: str = "", parameters: dict = None) -> st
         # Funções com git_commit
         if action == "git_commit":
             return func(params.get("message") or target)
+
+        # Programação
+        if action == "generate_code":
+            return func(params.get("language") or "", params.get("description") or target)
+        if action == "fix_bugs":
+            return func(params.get("code") or target, params.get("language") or "")
+        if action == "refactor_code":
+            return func(params.get("code") or target, params.get("language") or "")
+        if action == "generate_html":
+            return func(params.get("description") or target)
+        if action == "generate_css":
+            return func(params.get("description") or target)
+        if action == "generate_api":
+            return func(params.get("framework") or "flask", params.get("name") or target)
+
+        # VS Code
+        if action == "vscode_create_project":
+            return func(params.get("project_name") or target, params.get("template") or "")
+        if action == "vscode_edit_file":
+            return func(params.get("file_path") or target, params.get("content") or "")
+        if action == "vscode_install_extension":
+            return func(params.get("extension_id") or target)
+        if action == "vscode_open":
+            return func(params.get("path") or target)
+
+        # Navegador
+        if action == "browser_automate":
+            return func(params.get("task") or target)
+        if action == "browser_fill_form":
+            return func(params.get("url") or target, params.get("fields") or "{}")
+        if action == "browser_navigate":
+            return func(params.get("url") or target)
+
+        # GitHub Auto
+        if action in ["github_auto_commit", "github_auto_push", "github_auto_pull"]:
+            return func()
 
         return func(target)
 

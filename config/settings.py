@@ -30,7 +30,7 @@ MINIMAX_API_ID = os.getenv("MINIMAX_API_ID", "").strip()
 MINIMAX_BASE_URL = "https://api.minimax.io/anthropic/v1"
 
 # Modelo a usar
-MODEL_NAME = os.getenv("MODEL_NAME", "MiniMax-Text-01").strip()
+MODEL_NAME = os.getenv("MODEL_NAME", "MiniMax-M2.7").strip()
 
 # Configurações gerais
 DATA_DIR = BASE_DIR / "dados"
