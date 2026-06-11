@@ -98,7 +98,8 @@ class UsageAnalytics:
             lines.append(f"  {i}. {action}: {count}x")
 
         if summary["peak_hour"] is not None:
-            hour_str = f"{summary['peak_hour']:02d}:00"
+            peak = int(summary["peak_hour"])
+            hour_str = f"{peak:02d}:00"
             lines.append(f"\n⏰ Horário de maior atividade: {hour_str}")
 
         return "\n".join(lines)

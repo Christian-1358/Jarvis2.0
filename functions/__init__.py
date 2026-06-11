@@ -70,10 +70,42 @@ def close_app(app_name: str) -> str:
     if not app_name:
         return "Informe o nome do aplicativo."
     try:
+        # Mapeamento de nomes comuns para nomes de processos
+        browser_mapping = {
+            "google": "chrome",
+            "chrome": "chrome",
+            "chromium": "chromium",
+            "firefox": "firefox",
+            "edge": "msedge",
+            "opera": "opera",
+            "brave": "brave-browser",
+        }
+
+        # Normalizar nome
+        app_lower = app_name.lower().strip()
+        process_name = browser_mapping.get(app_lower, app_lower)
+
         if sys.platform == "linux":
-            subprocess.run(["pkill", "-f", app_name])
+            # Tentar killall primeiro (mais seguro)
+            subprocess.run(
+                ["killall", "-9", process_name],
+                capture_output=True, timeout=5
+            )
+            # Se não funcionou, matar via pgrep
+            result = subprocess.run(
+                ["pgrep", "-f", process_name],
+                capture_output=True, text=True
+            )
+            if result.stdout.strip():
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    if pid:
+                        try:
+                            subprocess.run(["kill", "-9", pid], capture_output=True)
+                        except:
+                            pass
         elif sys.platform == "win32":
-            os.system(f"taskkill /IM {app_name}.exe /F")
+            os.system(f"taskkill /IM {process_name}.exe /F")
         return f"Fechando {app_name}"
     except Exception as e:
         return f"Erro ao fechar {app_name}: {e}"
@@ -1010,7 +1042,50 @@ def github_auto_pull() -> str:
 # ========================
 
 def deploy() -> str:
-    return "Funcionalidade de deploy não implementada - configure seu script de deploy"
+    """Executa deploy do projeto."""
+    try:
+        import subprocess
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        commit_msg = f"Deploy Jarvis - {timestamp}"
+
+        # Verificar se é um repositório git
+        result = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"],
+ capture_output=True, text=True)
+        if result.returncode != 0:
+            return "Erro: Não é um repositório git"
+
+        # git add .
+        subprocess.run(["git", "add", "-A"], capture_output=True)
+
+        # git status para ver o que mudou
+        status = subprocess.run(["git", "status", "--porcelain"],
+                               capture_output=True, text=True)
+
+        if not status.stdout.strip():
+            return "Nada para commitar - tudo já está atualizado"
+
+        # git commit
+        commit = subprocess.run(["git", "commit", "-m", commit_msg],
+                               capture_output=True, text=True)
+
+        if commit.returncode != 0:
+            return f"Erro no commit: {commit.stderr}"
+
+        # git push
+        push = subprocess.run(["git", "push"],
+ capture_output=True, text=True, timeout=30)
+
+        if push.returncode == 0:
+            return f"✅ Deploy realizado com sucesso!\n📝 Commit: {commit_msg}"
+        else:
+            return f"⚠️ Commit feito, mas push falhou: {push.stderr}"
+
+    except subprocess.TimeoutExpired:
+        return "⏰ Timeout no push - rede lenta ou offline"
+    except Exception as e:
+        return f"Erro no deploy: {e}"
 
 
 def backup_dotfiles() -> str:
@@ -1148,6 +1223,222 @@ def training_status() -> str:
 
 
 # ========================
+# REINFORCEMENT LEARNING
+# ========================
+
+def rl_reward(action: str, reward_type: str = "correct", context: str = "") -> str:
+    """
+    Registra recompensa para uma ação (Aprendizado por Reforço).
+    reward_type: "correct" (+1.0), "incorrect" (-0.5), "neutral" (0.0)
+    context: contexto opcional (ex: "browser", "system", "files")
+    """
+    try:
+        from ml.reinforcement_learning import reward_action
+
+        result = reward_action(action, reward_type, context)
+
+        reward_symbol = "✅" if result["reward"] > 0 else "❌" if result["reward"] < 0 else "➖"
+
+        return (f"{reward_symbol} Recompensa registrada!\n"
+                f"   Ação: {result['action']}\n"
+                f"   Pontos: {result['reward']:+.1f}\n"
+                f"   Total: {result['total_score']:.1f} pts\n"
+                f"   Usada: {result['times_used']}x")
+    except ImportError:
+        return "Módulo de RL não disponível"
+    except Exception as e:
+        return f"Erro ao registrar recompensa: {e}"
+
+
+def rl_best_action(context: str = "") -> str:
+    """Retorna a melhor ação baseada no histórico de RL."""
+    try:
+        from ml.reinforcement_learning import get_best_action
+
+        result = get_best_action(context)
+
+        if result["action"] is None:
+            return "📚 Sem dados suficientes. Use 'rl_reward' para ensinar!"
+
+        return (f"🎯 Melhor ação para '{context or 'geral'}':\n"
+                f"   Ação: {result['action']}\n"
+                f"   Score: {result['score']:.1f}\n"
+                f"   Confiança: {result['confidence']:.0%}\n"
+                f"   Fonte: {result['source']}")
+    except ImportError:
+        return "Módulo de RL não disponível"
+    except Exception as e:
+        return f"Erro ao buscar melhor ação: {e}"
+
+
+def rl_report() -> str:
+    """Mostra relatório completo do sistema de RL."""
+    try:
+        from ml.reinforcement_learning import get_learning_report
+        return get_learning_report()
+    except ImportError:
+        return "Módulo de RL não disponível"
+    except Exception as e:
+        return f"Erro ao gerar relatório: {e}"
+
+
+def rl_stats(action: str = "") -> str:
+    """Mostra estatísticas detalhadas de uma ação no RL."""
+    try:
+        from ml.reinforcement_learning import get_action_stats
+
+        if not action:
+            return "Informe o nome da ação (ex: rl_stats open_app)"
+
+        stats = get_action_stats(action)
+
+        trend = "📈" if stats["trend"] == "up" else "📉"
+
+        return (f"📊 Estatísticas de RL para '{action}':\n"
+                f"   Score total: {stats['total_score']:.1f}\n"
+                f"   Vezes usada: {stats['times_used']}\n"
+                f"   Média por uso: {stats['avg_score']:.2f}\n"
+                f"   Tendência: {trend}")
+    except ImportError:
+        return "Módulo de RL não disponível"
+    except Exception as e:
+        return f"Erro ao buscar estatísticas: {e}"
+
+
+def rl_approve(action: str, context: str = "") -> str:
+    """Aprova uma ação (recompensa positiva +1.0)."""
+    return rl_reward(action, "correct", context)
+
+
+def rl_reject(action: str, context: str = "") -> str:
+    """Rejeita uma ação (recompensa negativa -0.5)."""
+    return rl_reward(action, "incorrect", context)
+
+
+# ========================
+# PROJECT ANALYZER
+# ========================
+
+def analyze_project(path: str = "") -> str:
+    """Analisa um projeto completo e gera relatório."""
+    if not path:
+        return "Informe o caminho do projeto a analisar."
+
+    try:
+        from analyzer import analyze_project, generate_analysis_report
+
+        result = analyze_project(path)
+
+        if result.score == 0 and not result.issues:
+            return f"Projeto não encontrado: {path}"
+
+        report = generate_analysis_report(result)
+
+        # Registrar para ML
+        try:
+            from analyzer.analyzer_ml import record_analysis
+            record_analysis(
+                result.project_name,
+                [i.to_dict() for i in result.issues],
+                result.suggestions_accepted,
+                result.suggestions_rejected
+            )
+        except:
+            pass
+
+        return report
+
+    except ImportError:
+        return "Módulo de análise não disponível. Instale as dependências."
+    except Exception as e:
+        return f"Erro ao analisar projeto: {e}"
+
+
+def analyzer_report() -> str:
+    """Mostra relatório do sistema de análise de projetos."""
+    try:
+        from analyzer.analyzer_ml import get_learning_report
+        return get_learning_report()
+    except ImportError:
+        return "Módulo de análise não disponível"
+    except Exception as e:
+        return f"Erro ao gerar relatório: {e}"
+
+
+def analyzer_ml_status() -> str:
+    """Mostra status do sistema de ML do analyzer."""
+    try:
+        from analyzer.analyzer_ml import get_analyzer_ml
+
+        ml = get_analyzer_ml()
+        strategies = ml.get_strategy_ranking()
+
+        lines = [
+            "🧠 Analyzer ML - Status do Sistema",
+            "=" * 45,
+            f"Taxa de exploração: {ml.exploration_rate:.0%}",
+            "",
+            "🏆 Top 5 Estratégias:",
+        ]
+
+        if not strategies:
+            lines.append("  Nenhuma estratégia aprendida ainda.")
+        else:
+            for i, s in enumerate(strategies[:5], 1):
+                lines.append(
+                    f"  {i}. {s['type']}: "
+                    f"aceite={s['acceptance_rate']:.0%} "
+                    f"precisão={s['accuracy']:.0%}"
+                )
+
+        lines.append("")
+        lines.append("💡 Use 'analyzer_feedback' para ensinar o sistema!")
+
+        return "\n".join(lines)
+    except ImportError:
+        return "Módulo de análise não disponível"
+    except Exception as e:
+        return f"Erro ao buscar status: {e}"
+
+
+def analyzer_feedback(issue_type: str, rule_id: str = "", accepted: str = "true",
+                    fixed: str = "false") -> str:
+    """
+    Registra feedback do usuário sobre uma análise.
+    Uso: analyzer_feedback "security" "hardcoded_secret" "true" "true"
+    """
+    try:
+        from analyzer.analyzer_ml import record_feedback
+
+        # Handle both string and bool inputs
+        if isinstance(accepted, bool):
+            accepted_bool = accepted
+        else:
+            accepted_bool = accepted.lower() in ["true", "sim", "1", "yes"]
+
+        if isinstance(fixed, bool):
+            fixed_bool = fixed
+        else:
+            fixed_bool = fixed.lower() in ["true", "sim", "1", "yes"]
+
+        reward = record_feedback(issue_type, rule_id, accepted_bool, fixed_bool if accepted_bool else None)
+
+        if reward > 1.5:
+            return f"✅ Excelente! Análise correta + problema realmente resolvido! (+{reward:.1f})"
+        elif reward > 0:
+            return f"👍 Feedback positivo registrado (+{reward:.1f})"
+        elif reward < 0:
+            return f"👎 Feedback negativo registrado ({reward:.1f})"
+        else:
+            return f"➖ Feedback registrado (neutro)"
+
+    except ImportError:
+        return "Módulo de análise não disponível"
+    except Exception as e:
+        return f"Erro ao registrar feedback: {e}"
+
+
+# ========================
 # RUN COMMAND
 # ========================
 
@@ -1246,6 +1537,20 @@ FUNCTIONS = {
     "train_ml": train_ml,
     "feedback": feedback,
     "training_status": training_status,
+
+    # RL (Aprendizado por Reforço)
+    "rl_reward": rl_reward,
+    "rl_best_action": rl_best_action,
+    "rl_report": rl_report,
+    "rl_stats": rl_stats,
+    "rl_approve": rl_approve,
+    "rl_reject": rl_reject,
+
+    # Analyzer (Análise de Projetos)
+    "analyze_project": analyze_project,
+    "analyzer_report": analyzer_report,
+    "analyzer_ml_status": analyzer_ml_status,
+    "analyzer_feedback": analyzer_feedback,
 
     # Comandos
     "run_command": run_command,

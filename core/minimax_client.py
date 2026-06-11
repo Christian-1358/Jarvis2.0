@@ -152,6 +152,19 @@ Sua tarefa é analisar comandos do usuário e decidir QUAL AÇÃO executar.
 - training_status: Ver status do treinamento. params: (none)
 - feedback: Registrar feedback para melhorar o modelo. params: command, predicted, correct, rating
 
+### Aprendizado por Reforço (RL):
+- rl_reward: Registrar recompensa para uma ação. params: action, reward_type (correct/incorrect/neutral), context
+- rl_approve: Aprovar uma ação (recompensa +1.0). params: action, context
+- rl_reject: Rejeitar uma ação (recompensa -0.5). params: action, context
+- rl_report: Ver relatório completo do RL. params: (none)
+- rl_stats: Ver estatísticas de uma ação. params: action
+
+### Análise de Projetos:
+- analyze_project: Analisar um projeto completo. params: path (caminho do projeto)
+- analyzer_report: Ver relatório do sistema de análise. params: (none)
+- analyzer_ml_status: Ver status do ML do analyzer. params: (none)
+- analyzer_feedback: Registrar feedback sobre análise. params: issue_type, rule_id, accepted, fixed
+
 ### Comandos:
 - run_command: Executar comando no terminal. params: command
 
@@ -221,11 +234,19 @@ Se o usuário quiser algo que não está nas ações disponíveis ou for só con
             result = response.json()
 
             content = ""
+            thinking_content = ""
             if "content" in result:
                 for item in result["content"]:
                     if item.get("type") == "text":
                         content = item.get("text", "")
                         break
+                    elif item.get("type") == "thinking":
+                        thinking_content = item.get("thinking", "")
+
+            # Se não encontrou text, tenta usar o thinking (pode conter a resposta)
+            if not content and thinking_content:
+                # O thinking pode conter o JSON que precisamos
+                content = thinking_content
 
             if content:
                 content = content.strip()

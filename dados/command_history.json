@@ -44,6 +44,176 @@
       "command": "ola",
       "action": "error",
       "timestamp": "2026-06-11T13:56:20.305997"
+    },
+    {
+      "command": "ola",
+      "action": "error",
+      "timestamp": "2026-06-11T13:57:13.588165"
+    },
+    {
+      "command": "ola",
+      "action": "chat",
+      "timestamp": "2026-06-11T13:57:55.268548"
+    },
+    {
+      "command": "abra o chrome",
+      "action": "open_app",
+      "timestamp": "2026-06-11T13:59:37.095713"
+    },
+    {
+      "command": "abra o firefox",
+      "action": "open_app",
+      "timestamp": "2026-06-11T13:59:37.096362"
+    },
+    {
+      "command": "abra o terminal",
+      "action": "open_app",
+      "timestamp": "2026-06-11T13:59:37.113761"
+    },
+    {
+      "command": "status do hardware",
+      "action": "hardware_status",
+      "timestamp": "2026-06-11T13:59:37.114198"
+    },
+    {
+      "command": "status do hardware",
+      "action": "hardware_status",
+      "timestamp": "2026-06-11T13:59:37.114606"
+    },
+    {
+      "command": "status do hardware",
+      "action": "hardware_status",
+      "timestamp": "2026-06-11T13:59:37.115016"
+    },
+    {
+      "command": "mostre stats",
+      "action": "show_stats",
+      "timestamp": "2026-06-11T13:59:37.115424"
+    },
+    {
+      "command": "mostre stats",
+      "action": "show_stats",
+      "timestamp": "2026-06-11T13:59:37.115835"
+    },
+    {
+      "command": "procure python",
+      "action": "search_web",
+      "timestamp": "2026-06-11T13:59:37.116393"
+    },
+    {
+      "command": "procure python",
+      "action": "search_web",
+      "timestamp": "2026-06-11T13:59:37.116785"
+    },
+    {
+      "command": "procure python",
+      "action": "search_web",
+      "timestamp": "2026-06-11T13:59:37.117172"
+    },
+    {
+      "command": "procure python",
+      "action": "search_web",
+      "timestamp": "2026-06-11T13:59:37.117574"
+    },
+    {
+      "command": "abra o vscode",
+      "action": "open_app",
+      "timestamp": "2026-06-11T13:59:37.117980"
+    },
+    {
+      "command": "status do hardware",
+      "action": "hardware_status",
+      "timestamp": "2026-06-11T13:59:49.844234"
+    },
+    {
+      "command": "mostre stats",
+      "action": "show_stats",
+      "timestamp": "2026-06-11T14:00:00.700093"
+    },
+    {
+      "command": "status do hardware",
+      "action": "hardware_status",
+      "timestamp": "2026-06-11T14:00:35.525559"
+    },
+    {
+      "command": "mostre stats",
+      "action": "show_stats",
+      "timestamp": "2026-06-11T14:00:47.330106"
+    },
+    {
+      "command": "ola",
+      "action": "chat",
+      "timestamp": "2026-06-11T14:03:05.489311"
+    },
+    {
+      "command": "abra o google",
+      "action": "browser_navigate",
+      "timestamp": "2026-06-11T14:03:15.426690"
+    },
+    {
+      "command": "fechar o google",
+      "action": "close_app",
+      "timestamp": "2026-06-11T14:03:31.404470"
+    },
+    {
+      "command": "jarvis abre chrome",
+      "action": "open_app",
+      "timestamp": "2026-06-11T14:10:02.369683"
+    },
+    {
+      "command": "jarvis pesquise python",
+      "action": "search_web",
+      "timestamp": "2026-06-11T14:10:02.370073"
+    },
+    {
+      "command": "jarvis fecha chrome",
+      "action": "close_app",
+      "timestamp": "2026-06-11T14:10:02.370406"
+    },
+    {
+      "command": "mostre stats",
+      "action": "show_stats",
+      "timestamp": "2026-06-11T14:43:02.240761"
+    },
+    {
+      "command": "analyzer_ml_status",
+      "action": "analyzer_ml_status",
+      "timestamp": "2026-06-11T14:43:13.701688"
+    },
+    {
+      "command": "analyzer_ml_status",
+      "action": "analyzer_ml_status",
+      "timestamp": "2026-06-11T14:43:40.869038"
+    },
+    {
+      "command": "analyze_project ./",
+      "action": "analyze_project",
+      "timestamp": "2026-06-11T14:43:48.057113"
+    },
+    {
+      "command": "analyzer_ml_status",
+      "action": "analyzer_ml_status",
+      "timestamp": "2026-06-11T14:43:55.059913"
+    },
+    {
+      "command": "analyzer_feedback security hardcoded_secret true true",
+      "action": "analyzer_feedback",
+      "timestamp": "2026-06-11T14:44:19.515200"
+    },
+    {
+      "command": "analyzer_ml_status",
+      "action": "analyzer_ml_status",
+      "timestamp": "2026-06-11T14:44:29.764994"
+    },
+    {
+      "command": "analyzer_feedback security hardcoded_secret true true",
+      "action": "analyzer_feedback",
+      "timestamp": "2026-06-11T14:45:10.420296"
+    },
+    {
+      "command": "analyzer_ml_status",
+      "action": "analyzer_ml_status",
+      "timestamp": "2026-06-11T14:45:21.499145"
     }
   ]
 }

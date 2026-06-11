@@ -1,0 +1,16 @@
+[
+  {
+    "command": "jarvis abre chrome",
+    "predicted_action": "open_app",
+    "correct_action": "open_app",
+    "rating": 1,
+    "timestamp": "2026-06-11T14:10:02.372065"
+  },
+  {
+    "command": "jarvis fecha chrome",
+    "predicted_action": "open_app",
+    "correct_action": "close_app",
+    "rating": -1,
+    "timestamp": "2026-06-11T14:10:02.372311"
+  }
+]

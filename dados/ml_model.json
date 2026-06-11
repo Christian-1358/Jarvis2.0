@@ -1,0 +1,15 @@
+{
+  "training_data": [
+    {
+      "input": "jarvis abre chrome",
+      "output": "open_app",
+      "type": "confirmed"
+    },
+    {
+      "input": "jarvis fecha chrome",
+      "output": "close_app",
+      "type": "correction"
+    }
+  ],
+  "updated": "2026-06-11T14:10:02.372453"
+}
