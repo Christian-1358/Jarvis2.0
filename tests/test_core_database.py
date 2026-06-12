@@ -9,7 +9,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from data.core_database import JarvisDB
 
-
 class TestJarvisDBInit:
     """Tests for database initialization."""
 
