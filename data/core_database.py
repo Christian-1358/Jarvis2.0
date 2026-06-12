@@ -979,13 +979,12 @@ class JarvisDB:
     def update_task_status(self, task_id: int, status: str) -> bool:
         """Atualiza status de tarefa."""
         with self._conn() as conn:
-            completed_at = "CURRENT_TIMESTAMP" if status == "completed" else "NULL"
-            conn.execute(f"""
+            conn.execute("""
                 UPDATE workspace_tasks
                 SET status = ?, updated_at = CURRENT_TIMESTAMP,
-                    completed_at = {'CURRENT_TIMESTAMP' if status == 'completed' else 'NULL'}
+                    completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END
                 WHERE id = ?
-            """, (status, task_id))
+            """, (status, status, task_id))
             return True
 
     # --- Workspace Files ---

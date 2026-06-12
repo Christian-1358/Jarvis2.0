@@ -1,12 +1,29 @@
 """
 Jarvis Tool Registry - Sistema Centralizado de Ferramentas
-取代 if/else espalhados por registro centralizado de ações
-Escalável, documentado e fácil de estender
+
+Agora usa action_registry.py como source of truth para:
+- Categorias de ações (ACTION_CATEGORIES)
+- Ações perigosas (DANGEROUS_ACTIONS)
+- Geração de prompts
+
+Mantém compatibilidade com a API existente (Tool, ToolRegistry).
 """
 
 from typing import Dict, List, Callable, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
+
+# Importar do action_registry (source of truth)
+from core.action_registry import (
+    ActionRegistry,
+    ActionDefinition,
+    DANGEROUS_ACTIONS,
+    ACTION_CATEGORIES,
+    ACTIONS_REQUIRING_TARGET,
+    get_action_registry,
+    is_dangerous_action,
+    requires_confirmation_action as action_requires_confirmation,
+)
 
 
 @dataclass
@@ -20,7 +37,7 @@ class Tool:
     requires_target: bool = False
     is_dangerous: bool = False
     requires_confirmation: bool = False
-    contexts: List[str] = field(default_factory=list)  # browser, search, git, system, files, etc
+    contexts: List[str] = field(default_factory=list)
     examples: List[str] = field(default_factory=list)
     use_count: int = 0
     success_rate: float = 0.0
@@ -53,35 +70,72 @@ class Tool:
 
 
 class ToolRegistry:
-    """Registro centralizado de todas as ferramentas do Jarvis."""
+    """
+    Registro centralizado de todas as ferramentas do Jarvis.
+
+    Agora delega para ActionRegistry como source of truth.
+    Mantém API existente para compatibilidade.
+    """
 
     def __init__(self):
         self._tools: Dict[str, Tool] = {}
         self._categories: Dict[str, List[str]] = {}
-        self._dangerous_actions: set = set()
-        self._init_core_tools()
+        self._action_registry = get_action_registry()
+        self._load_tools()
 
-    def _init_core_tools(self):
-        """Inicializa ferramentas base do sistema."""
-        #_tools.py será importado e suas funções registradas aqui
-        pass
+    def _load_tools(self):
+        """Carrega ferramentas do ActionRegistry."""
+        action_reg = self._action_registry
+
+        for name, action_def in action_reg.list_all().items():
+            tool = Tool(
+                name=action_def.name,
+                function=action_def.function,
+                description=action_def.description,
+                category=action_def.category,
+                parameters=action_def.parameters,
+                requires_target=action_def.requires_target,
+                is_dangerous=action_def.is_dangerous,
+                requires_confirmation=action_def.is_dangerous,
+                contexts=action_def.contexts,
+                examples=action_def.examples
+            )
+            self._tools[name] = tool
+
+            if action_def.category not in self._categories:
+                self._categories[action_def.category] = []
+            self._categories[action_def.category].append(name)
 
     def register(self, name: str, function: Callable, description: str = "",
                  category: str = "general", parameters: List[str] = None,
                  requires_target: bool = False, is_dangerous: bool = False,
                  contexts: List[str] = None, examples: List[str] = None):
-        """Registra uma nova ferramenta."""
+        """
+        Registra uma nova ferramenta.
+
+        Nota: Para novas ações, considere usar ActionRegistry diretamente.
+        """
+        if parameters is None:
+            parameters = []
+        if contexts is None:
+            contexts = []
+        if examples is None:
+            examples = []
+
+        # Verificar se é perigosa via ActionRegistry
+        is_dangerous = is_dangerous or is_dangerous_action(name)
+
         tool = Tool(
             name=name,
             function=function,
             description=description,
             category=category,
-            parameters=parameters or [],
+            parameters=parameters,
             requires_target=requires_target,
             is_dangerous=is_dangerous,
             requires_confirmation=is_dangerous,
-            contexts=contexts or [],
-            examples=examples or []
+            contexts=contexts,
+            examples=examples
         )
 
         self._tools[name] = tool
@@ -89,9 +143,6 @@ class ToolRegistry:
         if category not in self._categories:
             self._categories[category] = []
         self._categories[category].append(name)
-
-        if is_dangerous:
-            self._dangerous_actions.add(name)
 
     def get(self, name: str) -> Optional[Tool]:
         """Retorna uma ferramenta pelo nome."""
@@ -109,7 +160,6 @@ class ToolRegistry:
         params = parameters or {}
 
         try:
-            # Construir args baseado nos parâmetros
             if tool.requires_target:
                 params['target'] = target
 
@@ -120,7 +170,6 @@ class ToolRegistry:
             else:
                 result = tool.function()
 
-            # Atualizar estatísticas
             if "erro" not in result.lower()[:20]:
                 tool.mark_success()
             else:
@@ -129,7 +178,6 @@ class ToolRegistry:
             return result
 
         except TypeError as e:
-            # Parâmetros errados - tentar com target
             try:
                 result = tool.function(target) if target else tool.function()
                 return result
@@ -158,12 +206,11 @@ class ToolRegistry:
 
     def is_dangerous(self, name: str) -> bool:
         """Verifica se uma ação é perigosa."""
-        return name in self._dangerous_actions
+        return is_dangerous_action(name)
 
     def needs_confirmation(self, name: str) -> bool:
         """Verifica se uma ação precisa de confirmação."""
-        tool = self.get(name)
-        return tool.requires_confirmation if tool else False
+        return action_requires_confirmation(name)
 
     def get_top_tools(self, limit: int = 10) -> List[Tool]:
         """Retorna ferramentas mais usadas."""
@@ -174,7 +221,7 @@ class ToolRegistry:
         """Retorna estatísticas do registry."""
         total_tools = len(self._tools)
         total_uses = sum(t.use_count for t in self._tools.values())
-        dangerous_count = len(self._dangerous_actions)
+        dangerous_count = len(DANGEROUS_ACTIONS)
 
         return {
             "total_tools": total_tools,
@@ -206,9 +253,13 @@ class ToolRegistry:
 
         return "\n".join(lines)
 
+    def generate_prompt_section(self) -> str:
+        """Gera seção de ações para o prompt (delega para ActionRegistry)."""
+        return self._action_registry.generate_prompt_section()
+
 
 # Instância global
-_registry = None
+_registry: Optional[ToolRegistry] = None
 
 
 def get_registry() -> ToolRegistry:
@@ -216,123 +267,7 @@ def get_registry() -> ToolRegistry:
     global _registry
     if _registry is None:
         _registry = ToolRegistry()
-        _load_tools()
     return _registry
-
-
-def _load_tools():
-    """Carrega todas as ferramentas do módulo functions."""
-    try:
-        from functions import FUNCTIONS
-        registry = get_registry()
-
-        # Mapeamento de categorias
-        category_map = {
-            # Sistema
-            "shutdown_pc": ("system", ["system"], ["desliga o PC", "desligar computador"]),
-            "restart_pc": ("system", ["system"], ["reinicia o PC"]),
-            "hibernate_pc": ("system", ["system"], ["hibernar"]),
-            "sleep_mode": ("system", ["system"], ["suspender"]),
-            "wifi_on": ("system", ["system"], ["ligar wifi"]),
-            "wifi_off": ("system", ["system"], ["desligar wifi"]),
-            "set_brightness": ("system", ["system"], ["brilho"]),
-
-            # Apps
-            "open_app": ("apps", ["browser"], ["abre o chrome", "abrir firefox"]),
-            "close_app": ("apps", ["browser"], ["fecha o chrome", "fechar navegador"]),
-            "open_site": ("apps", ["browser"], ["abre o google", "abrir site"]),
-
-            # Busca
-            "search_web": ("search", ["search"], ["pesquisa python", "procure sobre"]),
-            "find_file": ("files", ["files"], ["buscar arquivo", "procura arquivo"]),
-
-            # Arquivos
-            "open_folder": ("files", ["files"], ["abre pasta", "abrir diretório"]),
-            "create_file": ("files", ["files"], ["criar arquivo"]),
-            "read_file": ("files", ["files"], ["ler arquivo", "mostra conteúdo"]),
-            "delete_file": ("files", ["files", "dangerous"], ["apagar arquivo", "deletar"]),
-            "rename_file": ("files", ["files"], ["renomear"]),
-            "move_file": ("files", ["files"], ["mover arquivo"]),
-            "copy_file": ("files", ["files"], ["copiar arquivo"]),
-            "organize_folder": ("files", ["files"], ["organizar pasta"]),
-
-            # Git
-            "git_status": ("git", ["git"], ["status git", "git status"]),
-            "git_log": ("git", ["git"], ["log git", "git log"]),
-            "git_pull": ("git", ["git"], ["git pull"]),
-            "git_push": ("git", ["git"], ["git push"]),
-            "git_commit": ("git", ["git"], ["git commit"]),
-
-            # Monitoramento
-            "hardware_status": ("monitoring", ["system"], ["status hardware", "status do PC"]),
-            "disk_health": ("monitoring", ["system"], ["saúde do disco"]),
-            "internet_speed": ("monitoring", ["system"], ["velocidade internet"]),
-
-            # Automação
-            "type_text": ("automation", ["automation"], ["digitar texto"]),
-            "press_key": ("automation", ["automation"], ["pressionar tecla"]),
-            "click_mouse": ("automation", ["automation"], ["clique mouse"]),
-            "move_mouse": ("automation", ["automation"], ["mover mouse"]),
-            "hotkey": ("automation", ["automation"], ["atalho teclado"]),
-            "screenshot": ("automation", ["automation"], ["screenshot", "print"]),
-
-            # Lembretes/Tarefas
-            "add_reminder": ("productivity", ["productivity"], ["adiciona lembrete"]),
-            "list_reminders": ("productivity", ["productivity"], ["lista lembretes"]),
-            "add_task": ("productivity", ["productivity"], ["adiciona tarefa"]),
-            "list_tasks": ("productivity", ["productivity"], ["lista tarefas"]),
-
-            # Agenda
-            "add_event": ("calendar", ["calendar"], ["adiciona evento"]),
-            "calendar_today": ("calendar", ["calendar"], ["eventos hoje"]),
-
-            # Despesas
-            "add_expense": ("finance", ["finance"], ["adiciona despesa"]),
-            "expense_summary": ("finance", ["finance"], ["resumo despesas"]),
-
-            # Stats/ML
-            "show_stats": ("stats", ["stats"], ["mostra estatísticas", "stats"]),
-            "show_ml_stats": ("stats", ["stats"], ["stats de ML"]),
-            "train_ml": ("stats", ["stats"], ["treina modelo"]),
-            "rl_report": ("rl", ["rl"], ["relatório RL"]),
-            "rl_stats": ("rl", ["rl"], ["stats RL"]),
-
-            # Deploy
-            "deploy": ("deploy", ["deploy"], ["fazer deploy"]),
-            "backup_dotfiles": ("backup", ["backup"], ["backup dotfiles"]),
-
-            # Comandos
-            "run_command": ("terminal", ["terminal"], ["executa comando"]),
-        }
-
-        for name, func in FUNCTIONS.items():
-            if name in category_map:
-                category, contexts, examples = category_map[name]
-                is_dangerous = "dangerous" in contexts
-                registry.register(
-                    name=name,
-                    function=func,
-                    description=func.__doc__ or f"Função {name}",
-                    category=category,
-                    contexts=contexts,
-                    examples=examples,
-                    is_dangerous=is_dangerous,
-                    requires_target=name in ["open_folder", "create_file", "read_file", "delete_file",
-                                            "rename_file", "move_file", "copy_file", "find_file",
-                                            "open_site", "add_task", "add_reminder", "add_expense",
-                                            "git_commit", "run_command"]
-                )
-            else:
-                # Registrar sem categoria específica
-                registry.register(
-                    name=name,
-                    function=func,
-                    description=func.__doc__ or f"Função {name}",
-                    category="general"
-                )
-
-    except ImportError as e:
-        print(f"[TOOL REGISTRY] Erro ao carregar ferramentas: {e}")
 
 
 def execute_tool(name: str, target: str = "", parameters: dict = None) -> str:
@@ -351,3 +286,10 @@ def list_tools(category: str = None) -> List[Tool]:
 def get_tool(name: str) -> Optional[Tool]:
     """Retorna uma ferramenta específica."""
     return get_registry().get(name)
+
+
+def reload_registry():
+    """Recarrega o registry (para desenvolvimento)."""
+    global _registry
+    _registry = None
+    return get_registry()

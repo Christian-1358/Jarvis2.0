@@ -16,6 +16,10 @@ pyttsx3>=2.90
 # Interface Web
 flask>=3.0.0
 
+# Testes
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
 # Certifique-se de ter o PyAudio instalado no sistema:
 # Ubuntu/Debian: sudo apt install python3-pyaudio
 # macOS: brew install portaudio

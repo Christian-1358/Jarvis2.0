@@ -114,156 +114,7 @@ e executar a ação mais adequada.
 
 """
 
-        return base + context_section + """## REGRAS DE ENTENDIMENTO:
-- Comandos vagos como "abre o chrome" ou "roda isso" devem ser interpretados corretamente
-- Referências como "ele", "lá", "aquilo" devem ser resolvidas pelo contexto
-- Se há ambiguidade, escolha a ação mais provável E explain sua escolha
-- Quando não souber, peça esclarecimento
-
-## AÇÕES DISPONÍVEIS (use exatamente estes nomes):
-
-### Sistema:
-- search_web: Pesquisar no Google. params: query
-- open_app: Abrir aplicativo. params: app_name
-- open_site: Abrir site no navegador. params: url
-- close_app: Fechar aplicativo. params: app_name
-- shutdown_pc: Desligar o PC imediatamente. params: (none)
-- schedule_shutdown: Agendar desligamento. params: minutes (número de minutos)
-- cancel_shutdown: Cancelar desligamento agendado. params: (none)
-- restart_pc: Reiniciar o PC. params: (none)
-- hibernate_pc: Hibernar o PC. params: (none)
-- sleep_mode: Colocar em modo de suspensão. params: (none)
-- wifi_on: Ligar WiFi. params: (none)
-- wifi_off: Desligar WiFi. params: (none)
-- set_brightness: Definir brilho. params: level (0-100)
-
-### Volume e Mídia:
-- volume_up: Aumentar volume. params: (none)
-- volume_down: Diminuir volume. params: (none)
-- mute: Mutar som. params: (none)
-- spotify_play: Tocar música no Spotify. params: (none)
-- spotify_pause: Pausar Spotify. params: (none)
-- spotify_next: Próxima música. params: (none)
-- spotify_previous: Música anterior. params: (none)
-
-### Arquivos:
-- open_folder: Abrir pasta. params: path
-- create_file: Criar arquivo. params: filename, content
-- read_file: Ler arquivo. params: path
-- delete_file: Deletar arquivo. params: path
-- rename_file: Renomear arquivo. params: old_path, new_name
-- move_file: Mover arquivo. params: source, destination
-- copy_file: Copiar arquivo. params: source, destination
-- organize_folder: Organizar arquivos na pasta. params: path
-- find_file: Buscar arquivo. params: name
-
-### Git:
-- git_status: Ver status do git. params: (none)
-- git_log: Ver histórico do git. params: (none)
-- git_pull: Fazer git pull. params: (none)
-- git_push: Fazer git push. params: (none)
-- git_commit: Fazer commit. params: message
-
-### Monitoramento:
-- hardware_status: Ver status do hardware (CPU, memória). params: (none)
-- disk_health: Ver saúde do disco. params: (none)
-- internet_speed: Testar velocidade da internet. params: (none)
-
-### Automação de Tela:
-- type_text: Digitar texto. params: text
-- press_key: Pressionar tecla. params: keys
-- click_mouse: Clicar com mouse. params: (none)
-- move_mouse: Mover mouse. params: x, y
-- hotkey: Atalho de teclado. params: keys
-- screenshot: Tirar screenshot. params: (none)
-
-### Lembretes e Tarefas:
-- add_reminder: Adicionar lembrete. params: text
-- list_reminders: Listar lembretes. params: (none)
-- add_task: Adicionar tarefa. params: text
-- list_tasks: Listar tarefas. params: (none)
-
-### Despertador:
-- set_alarm: Definir alarme/despertador. params: time (ex: "14:30" ou "14"), recurring (opcional: "diario" para diária)
-- cancel_alarm: Cancelar alarme. params: time (ex: "14:30") ou vazio para cancelar todos
-- list_alarms: Listar alarmes ativos. params: (none)
-- play_alarm_sound: Tocar som do alarme. params: (none)
-
-### Programação:
-- generate_code: Gerar código em uma linguagem. params: language, description
-- fix_bugs: Corrigir bugs em código. params: code, language
-- refactor_code: Refatorar código. params: code, language
-- generate_html: Gerar código HTML. params: description
-- generate_css: Gerar código CSS. params: description
-- generate_api: Gerar estrutura de API. params: framework, name
-
-### VS Code:
-- vscode_create_project: Criar projeto no VS Code. params: project_name, template
-- vscode_edit_file: Editar arquivo no VS Code. params: file_path, content
-- vscode_install_extension: Instalar extensão no VS Code. params: extension_id
-- vscode_open: Abrir arquivo/pasta no VS Code. params: path
-
-### Navegador:
-- browser_automate: Automatizar tarefa no navegador. params: task
-- browser_fill_form: Preencher formulário web. params: url, fields
-- browser_navigate: Navegar para URL. params: url
-
-### GitHub:
-- github_auto_commit: Commit automático com mensagem gerada. params: (none)
-- github_auto_push: Push automático. params: (none)
-- github_auto_pull: Pull automático. params: (none)
-
-### Agenda:
-- add_event: Adicionar evento. params: title, date
-- calendar_today: Ver eventos de hoje. params: (none)
-
-### Despesas:
-- add_expense: Adicionar despesa. params: amount, description
-- expense_summary: Ver resumo de despesas. params: (none)
-
-### Informações:
-- news: Ver notícias. params: (none)
-- weather: Ver clima. params: city
-
-### Comunicação:
-- email_summary: Resumo de emails. params: (none)
-- check_new_emails: Verificar emails novos. params: (none)
-- whatsapp_send: Enviar mensagem WhatsApp. params: to, message
-- whatsapp_list_unread: Listar mensagens não lidas. params: (none)
-- send_telegram: Enviar mensagem no Telegram. params: message
-
-### Deploy/Backup:
-- deploy: Fazer deploy. params: (none)
-- backup_dotfiles: Fazer backup dos dotfiles. params: (none)
-- schedule_deploy: Agendar deploy para uma hora. params: time (ex: "14:30" ou "14"), recurring (opcional: "diario" para diária)
-- cancel_deploy_schedule: Cancelar deploy agendado. params: time (ex: "14:30") ou vazio para cancelar todos
-- list_deploy_schedules: Listar deploys agendados. params: (none)
-
-### Stats/ML:
-- show_stats: Ver estatísticas de uso. params: (none)
-- show_ml_stats: Ver estatísticas de ML (comandos mais usados). params: (none)
-- train_ml: Treinar o modelo de ML. params: (none)
-- training_status: Ver status do treinamento. params: (none)
-- feedback: Registrar feedback para melhorar o modelo. params: command, predicted, correct, rating
-
-### Aprendizado por Reforço (RL):
-- rl_reward: Registrar recompensa para uma ação. params: action, reward_type (correct/incorrect/neutral), context
-- rl_approve: Aprovar uma ação (recompensa +1.0). params: action, context
-- rl_reject: Rejeitar uma ação (recompensa -0.5). params: action, context
-- rl_report: Ver relatório completo do RL. params: (none)
-- rl_stats: Ver estatísticas de uma ação. params: action
-
-### Análise de Projetos:
-- analyze_project: Analisar um projeto completo. params: path (caminho do projeto)
-- analyzer_report: Ver relatório do sistema de análise. params: (none)
-- analyzer_ml_status: Ver status do ML do analyzer. params: (none)
-- analyzer_feedback: Registrar feedback sobre análise. params: issue_type, rule_id, accepted, fixed
-
-### Comandos:
-- run_command: Executar comando no terminal. params: command
-
-### Chat:
-- chat: Conversa livre (não requer automação). params: (none) - use target para a resposta
+        return base + context_section + self._build_actions_prompt() + """
 
 ## FORMATO DE RESPOSTA:
 Retorne APENAS JSON válido, sem markdown, sem explicações:
@@ -277,6 +128,19 @@ Se o usuário quiser algo que não está nas ações disponíveis ou for só con
 - "jarvis me ajuda" -> {"action": "chat", "target": "Claro! Em que posso ajudar?", "parameters": {}}
 - "jarvis pesquisa python" -> {"action": "search_web", "target": "python", "parameters": {}}
 """
+
+    def _build_actions_prompt(self) -> str:
+        """Gera seção de ações dinamicamente via ActionRegistry."""
+        from core.action_registry import get_action_registry
+        registry = get_action_registry()
+
+        rules = """## REGRAS DE ENTENDIMENTO:
+- Comandos vagos como "abre o chrome" ou "roda isso" devem ser interpretados corretamente
+- Referências como "ele", "lá", "aquilo" devem ser resolvidas pelo contexto
+- Se há ambiguidade, escolha a ação mais provável E explain sua escolha
+- Quando não souber, peça esclarecimento
+"""
+        return rules + registry.generate_prompt_section()
 
     def _preprocess_command(self, command: str) -> str:
         """Pré-processa o comando para melhorar interpretação."""

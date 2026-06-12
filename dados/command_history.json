@@ -264,7 +264,7 @@
       "command": "pesquise oi",
       "action": "search_web",
       "timestamp": "2026-06-11T16:49:22.588252"
-    },  
+    },
     {
       "command": "fefechar pesquisa",
       "action": "close_app",
@@ -344,6 +344,16 @@
       "command": "fechar chrome",
       "action": "close_app",
       "timestamp": "2026-06-11T17:03:40.700214"
+    },
+    {
+      "command": "fa\u00e7a deploy",
+      "action": "deploy",
+      "timestamp": "2026-06-11T17:12:28.372006"
+    },
+    {
+      "command": "renicie o pc daqui 10 segundos",
+      "action": "schedule_shutdown",
+      "timestamp": "2026-06-11T17:12:52.505630"
     }
   ]
 }

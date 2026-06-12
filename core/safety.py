@@ -1,71 +1,19 @@
 """
 Jarvis Safety System - Sistema de Confirmacao para Acoes Perigosas
-Todas as acoes perigosas requerem confirmacao explicita do usuario
+
+Agora usa action_registry.py como source of truth para DANGEROUS_ACTIONS.
+Mantém compatibilidade com a API existente.
 """
 
-from typing import Optional, Callable, Dict
+from typing import Optional, Dict
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
-
-@dataclass
-class DangerousAction:
-    """Representa uma acao perigosa."""
-    name: str
-    description: str
-    risk_level: str  # low, medium, high, critical
-    confirmation_phrase: str
-    timeout_seconds: int = 30
+from core.action_registry import DANGEROUS_ACTIONS, DangerousActionInfo
 
 
 class SafetyManager:
     """Gerenciador de seguranca para acoes perigosas."""
-
-    # Acoes perigosas predefinidas
-    DANGEROUS_ACTIONS = {
-        "delete_file": DangerousAction(
-            name="delete_file",
-            description="Apagar arquivos permanentemente",
-            risk_level="high",
-            confirmation_phrase="sim, apagar"
-        ),
-        "shutdown_pc": DangerousAction(
-            name="shutdown_pc",
-            description="Desligar o computador imediatamente",
-            risk_level="critical",
-            confirmation_phrase="sim, desligar"
-        ),
-        "restart_pc": DangerousAction(
-            name="restart_pc",
-            description="Reiniciar o computador",
-            risk_level="high",
-            confirmation_phrase="sim, reiniciar"
-        ),
-        "hibernate_pc": DangerousAction(
-            name="hibernate_pc",
-            description="Hibernar o computador",
-            risk_level="medium",
-            confirmation_phrase="sim, hibernar"
-        ),
-        "format_disk": DangerousAction(
-            name="format_disk",
-            description="Formatar disco (nao implementado)",
-            risk_level="critical",
-            confirmation_phrase="IMPOSSIBLE"
-        ),
-        "run_command": DangerousAction(
-            name="run_command",
-            description="Executar comandos no terminal",
-            risk_level="high",
-            confirmation_phrase="sim, executar"
-        ),
-        "drop_database": DangerousAction(
-            name="drop_database",
-            description="Apagar banco de dados",
-            risk_level="critical",
-            confirmation_phrase="IMPOSSIBLE"
-        ),
-    }
 
     def __init__(self):
         self._pending_confirmations: Dict = {}
@@ -74,17 +22,18 @@ class SafetyManager:
 
     def is_dangerous(self, action: str) -> bool:
         """Verifica se uma acao e perigosa."""
-        return action in self.DANGEROUS_ACTIONS
+        return action in DANGEROUS_ACTIONS
 
-    def get_danger_info(self, action: str):
+    def get_danger_info(self, action: str) -> Optional[DangerousActionInfo]:
         """Retorna informacoes de perigo de uma acao."""
-        return self.DANGEROUS_ACTIONS.get(action)
+        return DANGEROUS_ACTIONS.get(action)
 
     def requires_confirmation(self, action: str) -> bool:
         """Verifica se uma acao requer confirmacao."""
-        if action in self.DANGEROUS_ACTIONS:
-            return self.DANGEROUS_ACTIONS[action].risk_level in ["high", "critical"]
-        return False
+        info = DANGEROUS_ACTIONS.get(action)
+        if not info:
+            return False
+        return info.risk_level in ("high", "critical")
 
     def request_confirmation(self, action: str, target: str = "", session_id: str = None) -> dict:
         """
@@ -102,7 +51,7 @@ class SafetyManager:
             "target": target,
             "session_id": session_id,
             "created_at": datetime.now(),
-            "timeout": timedelta(seconds=danger_info.timeout_seconds)
+            "timeout": timedelta(seconds=30)
         }
 
         risk_emoji = {
@@ -119,15 +68,15 @@ class SafetyManager:
             "description": danger_info.description,
             "risk_level": danger_info.risk_level,
             "risk_emoji": risk_emoji.get(danger_info.risk_level, "⚠️"),
-            "confirmation_phrase": danger_info.confirmation_phrase,
+            "confirmation_phrase": danger_info.phrase,
             "target": target,
             "message": (
                 f"{risk_emoji.get(danger_info.risk_level, '⚠️')} ACAO PERIGOSA: {action}\n"
                 f"Descricao: {danger_info.description}\n"
                 f"Alvo: {target or 'N/A'}\n"
                 f"Risco: {danger_info.risk_level.upper()}\n\n"
-                f"Para confirmar, digite: '{danger_info.confirmation_phrase}'\n"
-                f"Ou aguarde {danger_info.timeout_seconds}s para cancelar automaticamente."
+                f"Para confirmar, digite: '{danger_info.phrase}'\n"
+                f"Ou aguarde 30s para cancelar automaticamente."
             )
         }
 
@@ -144,7 +93,7 @@ class SafetyManager:
             return {"confirmed": False, "reason": "Tempo de confirmacao expirado"}
 
         danger_info = self.get_danger_info(pending["action"])
-        expected_phrase = danger_info.confirmation_phrase.lower() if danger_info else ""
+        expected_phrase = danger_info.phrase.lower() if danger_info else ""
 
         # Verificar resposta
         response_lower = user_response.lower().strip()
